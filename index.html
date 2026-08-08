@@ -1,0 +1,2448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>POLYPTYCH</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html, body { background:#000; height:100%; overflow:hidden; }
+  #root {
+    width:100%; max-width:430px; margin:0 auto;
+    background:#000; height:100vh;
+    display:flex; flex-direction:column;
+    font-family: 'Courier New', monospace;
+    overflow:hidden; position:relative;
+  }
+
+  /* INIT SCREEN */
+  #init-screen {
+    position:absolute; inset:0; z-index:100;
+    background:#000;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:space-evenly;
+    overflow:hidden; padding:16px 20px;
+  }
+  #init-screen.hidden { display:none; }
+
+  .init-glyph {
+    width:min(80px, 10vh); height:min(80px, 10vh);
+    position:relative; flex-shrink:0;
+  }
+  .init-glyph svg { width:100%; height:100%; }
+
+  .init-title {
+    font-size:min(36px, 5vh); font-weight:700; letter-spacing:0.25em;
+    color:#fff; text-transform:uppercase;
+    animation: flicker 4s infinite;
+  }
+  .init-sub {
+    font-size:9px; letter-spacing:0.3em;
+    color:#555; text-transform:uppercase;
+  }
+
+  .init-btn {
+    width:180px; height:46px;
+    border:1.5px solid #fff;
+    background:transparent; color:#fff;
+    font-family:'Courier New',monospace;
+    font-size:12px; letter-spacing:0.3em;
+    text-transform:uppercase; cursor:pointer;
+    position:relative; overflow:hidden;
+    transition: all 0.15s; flex-shrink:0;
+  }
+  .init-btn:active { transform:scale(0.97); background:rgba(255,255,255,0.08); }
+  .init-btn::before {
+    content:''; position:absolute;
+    top:0; left:-100%; width:100%; height:100%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent);
+    animation: sweep 3s infinite;
+  }
+
+  @keyframes flicker {
+    0%,95%,100%{opacity:1} 96%{opacity:0.4} 97%{opacity:1} 98%{opacity:0.6} 99%{opacity:1}
+  }
+  @keyframes sweep { 0%{left:-100%} 100%{left:200%} }
+
+  /* MAIN APP */
+  #app { display:none; flex-direction:column; height:100vh; position:relative; }
+  #app.active { display:flex; }
+
+  /* TOP BAR */
+  #topbar {
+    height:52px; display:flex; align-items:center;
+    justify-content:space-between;
+    padding:0 16px;
+    border-bottom:0.5px solid #222;
+    flex-shrink:0; position:relative; z-index:10;
+  }
+  .tb-logo { font-size:14px; letter-spacing:0.3em; color:#fff; text-transform:uppercase; }
+  .tb-info { font-size:10px; color:#444; letter-spacing:0.15em; }
+  .tb-scale { font-size:10px; color:#aaa; letter-spacing:0.1em; min-width:80px; text-align:right; }
+
+  /* PAD ROW — contains XY pad + snare slider side by side */
+  #pad-row {
+    flex:1; display:flex; overflow:hidden; min-height:0;
+  }
+  #xy-wrap {
+    flex:1; position:relative; overflow:hidden; background:#000;
+  }
+
+  /* GRAFFITI CANVAS */
+  #gfx-canvas {
+    position:absolute; inset:0; z-index:1;
+    pointer-events:none;
+  }
+  #gfx-overlay {
+    position:absolute; inset:0; z-index:2;
+    pointer-events:none;
+  }
+
+  /* GRID LINES */
+  #grid-svg {
+    position:absolute; inset:0; z-index:2;
+    pointer-events:none; opacity:0.18;
+    width:100%; height:100%;
+  }
+
+  /* XY TOUCH AREA */
+  #xy-pad {
+    position:absolute; inset:0; z-index:5;
+    cursor:crosshair; touch-action:none;
+  }
+
+  /* CURSOR */
+  #cursor { display:none !important; }
+
+  /* AXIS LABELS */
+  .axis-label {
+    position:absolute; font-size:9px; color:#888;
+    letter-spacing:0.2em; text-transform:uppercase;
+    z-index:3; pointer-events:none;
+  }
+  #lbl-x-lo { bottom:20px; left:16px; }
+  #lbl-x-hi { bottom:20px; right:16px; }
+  #lbl-y-hi { top:16px; left:16px; }
+  #lbl-y-lo { bottom:60px; left:16px; }
+
+  /* BOTTOM CONTROLS */
+  #controls {
+    flex-shrink:0;
+    display:grid;
+    grid-template-columns: 8px repeat(4, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap:6px; padding:8px 10px;
+    border-top:0.5px solid #222;
+    background:#050505; z-index:10;
+  }
+  .longpress-title {
+    grid-column: 2 / 6; grid-row: 0;
+    font-size:7px; color:#555; letter-spacing:0.12em;
+    text-transform:uppercase; text-align:center;
+    margin-bottom:-2px;
+  }
+  .ctrl-btn {
+    height:38px; border:0.5px solid #333;
+    background:transparent; color:#888;
+    font-family:'Courier New',monospace;
+    font-size:8px; letter-spacing:0.15em;
+    text-transform:uppercase; cursor:pointer;
+    transition:all 0.1s; border-radius:2px;
+    line-height:1.4;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .ctrl-btn:active { background:#111; color:#fff; transform:scale(0.97); }
+  .ctrl-btn.active { border-color:#fff; color:#fff; background:#0a0a0a; }
+
+
+
+  .vumeter {
+    width:8px; background:#111;
+    border:0.5px solid #333; border-radius:2px;
+    position:relative; overflow:hidden;
+    grid-row: 1 / 3; /* spans both rows */
+  }
+  .vumeter-fill {
+    position:absolute; bottom:0; left:0; right:0;
+    background:#fff; transition:height 0.05s;
+  }
+
+  /* STATUS ROW */
+  #status-row {
+    height:32px; display:flex; align-items:center;
+    padding:0 16px; gap:16px;
+    background:#000; flex-shrink:0;
+  }
+  .stat { font-size:9px; color:#888; letter-spacing:0.12em; }
+  .stat span { color:#777; }
+  #stat-note span { color:#aaa; }
+
+  /* PIANO SLIDER COLUMN */
+  #piano-col {
+    width:44px; flex-shrink:0;
+    display:flex; flex-direction:column; align-items:center;
+    padding:10px 0 6px; background:#000;
+    border-right:0.5px solid #1a1a1a; z-index:10; gap:4px;
+  }
+  #piano-canvas-wrap {
+    flex:1; width:100%; position:relative; cursor:pointer;
+    touch-action:none;
+  }
+  #piano-canvas { display:block; width:100%; height:100%; }
+  .pcol-label {
+    font-size:7px; color:#888; letter-spacing:0.15em;
+    text-transform:uppercase; writing-mode:vertical-rl;
+    transform:rotate(180deg); flex-shrink:0;
+  }
+  .pcol-val {
+    font-size:7px; color:#aaa; letter-spacing:0.08em;
+    font-family:'Courier New',monospace; text-align:center;
+    flex-shrink:0; padding:0 2px; min-height:20px; line-height:1.3;
+  }
+
+  /* SNARE SLIDER COLUMN */
+  #pad-row {
+    flex:1; display:flex; overflow:hidden; position:relative;
+  }
+  #xy-wrap {
+    flex:1; position:relative; overflow:hidden; background:#000;
+  }
+  #snare-col {
+    width:44px; flex-shrink:0;
+    display:flex; flex-direction:column; align-items:center;
+    padding:10px 0 6px; background:#000;
+    border-left:0.5px solid #1a1a1a; z-index:10; gap:4px;
+  }
+  .scol-label {
+    font-size:7px; color:#888; letter-spacing:0.15em;
+    text-transform:uppercase; writing-mode:vertical-rl;
+    transform:rotate(180deg); flex-shrink:0;
+  }
+  #snare-canvas-wrap {
+    flex:1; width:100%; position:relative; cursor:pointer;
+    touch-action:none;
+  }
+  #snare-canvas { display:block; width:100%; height:100%; }
+  .scol-val {
+    font-size:7px; color:#aaa; letter-spacing:0.08em;
+    font-family:'Courier New',monospace; text-align:center;
+    flex-shrink:0; padding:0 2px; min-height:20px; line-height:1.3;
+  }
+
+  /* SCALE SELECTOR on init screen */
+  .scale-section {
+    display:flex; flex-direction:column; align-items:center;
+    gap:8px;
+  }
+  .scale-grid {
+    display:grid; grid-template-columns: repeat(5, 1fr);
+    gap:5px; width:min(320px, 90vw);
+  }
+  .scale-opt {
+    height:32px; border:0.5px solid #333; background:transparent;
+    color:#666; font-family:'Courier New',monospace;
+    font-size:7px; letter-spacing:0.06em; text-transform:uppercase;
+    cursor:pointer; transition:all 0.12s;
+    -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;
+  }
+  .scale-opt.selected { border-color:#fff; color:#fff; background:#0a0a0a; }
+
+  /* TEMPO SELECTOR on init screen */
+  .tempo-section {
+    display:flex; flex-direction:column; align-items:center;
+    gap:8px;
+  }
+  .tempo-label {
+    font-size:8px; letter-spacing:0.3em; color:#444; text-transform:uppercase;
+  }
+  .tempo-options {
+    display:flex; gap:10px;
+  }
+  .tempo-opt {
+    width:60px; height:40px;
+    border:0.5px solid #333; background:transparent;
+    color:#666; font-family:'Courier New',monospace;
+    font-size:11px; letter-spacing:0.1em;
+    cursor:pointer; transition:all 0.12s;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:1px;
+  }
+  .tempo-opt span { font-size:8px; color:#333; letter-spacing:0.15em; }
+  .tempo-opt.selected { border-color:#fff; color:#fff; background:#0a0a0a; }
+  .tempo-opt.selected span { color:#777; }
+  /* BPM display in topbar */
+  .tb-bpm { font-size:10px; color:#555; letter-spacing:0.1em; }
+</style>
+</head>
+<body>
+<div id="root">
+
+  <!-- INIT SCREEN -->
+  <div id="init-screen">
+    <div class="init-glyph">
+      <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="60,8 112,90 8,90" fill="none" stroke="#fff" stroke-width="1.5"/>
+        <polygon points="60,28 94,82 26,82" fill="none" stroke="#444" stroke-width="0.75"/>
+        <polygon points="60,48 78,74 42,74" fill="none" stroke="#222" stroke-width="0.5"/>
+        <line x1="60" y1="8" x2="60" y2="90" stroke="#fff" stroke-width="0.5" opacity="0.3"/>
+        <line x1="8" y1="90" x2="112" y2="90" stroke="#fff" stroke-width="0.5" opacity="0.3"/>
+        <line x1="8" y1="90" x2="60" y2="8" stroke="#fff" stroke-width="0.5" opacity="0.3"/>
+        <line x1="60" y1="8" x2="112" y2="90" stroke="#fff" stroke-width="0.5" opacity="0.3"/>
+        <circle cx="60" cy="60" r="4" fill="#fff"/>
+        <circle cx="60" cy="60" r="12" fill="none" stroke="#fff" stroke-width="0.5" opacity="0.4"/>
+        <circle cx="60" cy="60" r="22" fill="none" stroke="#333" stroke-width="0.5"/>
+      </svg>
+    </div>
+    <div class="init-title">POLYPTYCH</div>
+    <div class="init-sub">Dual oscillator feedback drone</div>
+    <div class="tempo-section">
+      <div class="tempo-label">Select Tempo</div>
+      <div class="tempo-options">
+        <button class="tempo-opt" data-bpm="60"><div>60</div><span>BPM</span></button>
+        <button class="tempo-opt selected" data-bpm="90"><div>90</div><span>BPM</span></button>
+        <button class="tempo-opt" data-bpm="120"><div>120</div><span>BPM</span></button>
+        <button class="tempo-opt" data-bpm="150"><div>150</div><span>BPM</span></button>
+      </div>
+    </div>
+    <div class="scale-section">
+      <div class="tempo-label">Select Scale</div>
+      <div class="scale-grid">
+        <button class="scale-opt" data-scale="0">HIJAZ</button>
+        <button class="scale-opt" data-scale="1">BAYATI</button>
+        <button class="scale-opt" data-scale="2">PHRYG</button>
+        <button class="scale-opt" data-scale="3">W.AFR</button>
+        <button class="scale-opt" data-scale="4">DBL HRM</button>
+        <button class="scale-opt" data-scale="5">MIN PNT</button>
+        <button class="scale-opt" data-scale="6">OCTAT</button>
+        <button class="scale-opt" data-scale="7">DORIAN</button>
+        <button class="scale-opt" data-scale="8">MIXO</button>
+        <button class="scale-opt" data-scale="9">LYDIAN</button>
+        <button class="scale-opt" data-scale="10">PERSIAN</button>
+        <button class="scale-opt" data-scale="11">HUNG MIN</button>
+      </div>
+    </div>
+    <button class="init-btn" id="start-btn">INITIALIZE AUDIO</button>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="app">
+    <div id="topbar">
+      <div class="tb-logo">POLYPTYCH</div>
+      <div class="tb-info">UNICURSE MODE</div>
+      <div class="tb-bpm" id="tb-bpm">90 BPM</div>
+      <div class="tb-scale" id="tb-scale">HIJAZ</div>
+    </div>
+
+    <div id="pad-row">
+      <!-- PIANO VOICE SLIDER -->
+      <div id="piano-col">
+        <div class="pcol-label">BRIGHT</div>
+        <div id="piano-canvas-wrap">
+          <canvas id="piano-canvas"></canvas>
+        </div>
+        <div class="pcol-label">WARM</div>
+        <div class="pcol-val" id="piano-val">SAW</div>
+      </div>
+
+      <div id="xy-wrap">
+        <canvas id="gfx-canvas"></canvas>
+        <canvas id="gfx-overlay"></canvas>
+
+        <svg id="grid-svg" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#fff" stroke-width="0.5"/>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)"/>
+          <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#fff" stroke-width="0.5" opacity="0.5"/>
+          <line x1="0" y1="50%" x2="100%" y2="50%" stroke="#fff" stroke-width="0.5" opacity="0.5"/>
+        </svg>
+
+        <div id="xy-pad"></div>
+
+        <div id="cursor">
+          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="20" cy="20" r="18" fill="none" stroke="#fff" stroke-width="1.5"/>
+            <line x1="20" y1="2" x2="20" y2="38" stroke="#fff" stroke-width="0.75"/>
+            <line x1="2" y1="20" x2="38" y2="20" stroke="#fff" stroke-width="0.75"/>
+            <circle cx="20" cy="20" r="3" fill="#fff"/>
+          </svg>
+        </div>
+
+        <div class="axis-label" id="lbl-x-lo">FILTER DARK</div>
+        <div class="axis-label" id="lbl-x-hi">FILTER BRIGHT</div>
+        <div class="axis-label" id="lbl-y-hi">DRONE SWELL</div>
+        <div class="axis-label" id="lbl-y-lo">FEEDBACK MAX</div>
+      </div>
+
+      <!-- SNARE COMPLEXITY SLIDER -->
+      <div id="snare-col">
+        <div class="scol-label">DENSE</div>
+        <div id="snare-canvas-wrap">
+          <canvas id="snare-canvas"></canvas>
+        </div>
+        <div class="scol-label">SPARSE</div>
+        <div class="scol-val" id="snare-val">—</div>
+      </div>
+    </div>
+
+    <div id="status-row">
+      <div class="stat" id="stat-note">NOTE <span id="note-display">—</span></div>
+      <div class="stat" style="color:#333;letter-spacing:0.12em;font-size:8px;flex:1;text-align:center;">LONG PRESS FOR ALT FUNCTION</div>
+      <div class="stat">SCALE <span id="scale-display">HIJAZ</span></div>
+
+      <div class="stat">Y <span id="y-display">—</span></div>
+    </div>
+
+    <div id="controls">
+      <div class="vumeter"><div class="vumeter-fill" id="vu" style="height:0%"></div></div>
+      <button class="ctrl-btn active" id="btn-drums">KICK<br>SNARE</button>
+      <button class="ctrl-btn active" id="btn-voice1">V1<br>FEEDBACK</button>
+      <button class="ctrl-btn active" id="btn-voice2">V2<br>DRONE</button>
+      <button class="ctrl-btn" id="btn-scale">SCALE<br>CHANGE</button>
+      <button class="ctrl-btn" id="btn-tom">TOM<br>PATTERN</button>
+      <button class="ctrl-btn" id="btn-karplus">KARPLUS<br>STRING</button>
+      <button class="ctrl-btn" id="btn-epiano">FM PIANO<br>MELODY</button>
+      <button class="ctrl-btn" id="btn-rand">RAND<br>MELODY</button>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+
+// ─── GRAFFITI ENGINE ─────────────────────────────────────────────────────────
+class GraffitiEngine {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.overlay = document.getElementById('gfx-overlay');
+    this.octx = this.overlay ? this.overlay.getContext('2d') : null;
+    this.W = 0; this.H = 0;
+    // 3D node cloud — each node has x,y,z in normalised space [-1,1]
+    this.nodes = [];
+    this.rotX = 0; this.rotY = 0; // slow auto-rotation
+    this.lastX = 0; this.lastY = 0;
+    this.speed = 0;
+    this.resize();
+  }
+
+  resize() {
+    const rect = this.canvas.parentElement.getBoundingClientRect();
+    this.W = rect.width; this.H = rect.height;
+    this.canvas.width = rect.width * window.devicePixelRatio;
+    this.canvas.height = rect.height * window.devicePixelRatio;
+    this.canvas.style.width = rect.width + 'px';
+    this.canvas.style.height = rect.height + 'px';
+    this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    if (this.overlay) {
+      this.overlay.width = rect.width * window.devicePixelRatio;
+      this.overlay.height = rect.height * window.devicePixelRatio;
+      this.overlay.style.width = rect.width + 'px';
+      this.overlay.style.height = rect.height + 'px';
+      this.octx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+  }
+
+  // Project 3D point to 2D screen with perspective
+  project(x, y, z) {
+    // Rotate around Y axis
+    const cosY = Math.cos(this.rotY), sinY = Math.sin(this.rotY);
+    const rx = x * cosY - z * sinY;
+    const rz = x * sinY + z * cosY;
+    // Rotate around X axis
+    const cosX = Math.cos(this.rotX), sinX = Math.sin(this.rotX);
+    const ry = y * cosX - rz * sinX;
+    const rz2 = y * sinX + rz * cosX;
+    // Perspective divide
+    const fov = 2.2;
+    const pz = rz2 + fov;
+    const scale = fov / Math.max(pz, 0.1);
+    const cx = this.W / 2, cy = this.H / 2;
+    const size = Math.min(this.W, this.H) * 0.42;
+    return {
+      sx: cx + rx * scale * size,
+      sy: cy + ry * scale * size,
+      depth: (rz2 + 1) / 2  // 0=back, 1=front
+    };
+  }
+
+  addPoint(x, y) {
+    const dx = x - this.lastX, dy = y - this.lastY;
+    this.speed = Math.sqrt(dx*dx + dy*dy);
+
+    if (this.speed > 0.5) {
+      // Map screen touch to 3D position — x/y from touch, z extruded randomly
+      const nx = (x / this.W) * 2 - 1;
+      const ny = (y / this.H) * 2 - 1;
+      // Z varies with speed and randomness — faster swipes extrude deeper
+      const nz = (Math.random() - 0.5) * (0.4 + this.speed * 0.04);
+
+      const now = Date.now();
+      const node = { nx, ny, nz, born: now, life: 18000 + Math.random() * 20000 };
+      this.nodes.push(node);
+
+      // Cap node count
+      if (this.nodes.length > 120) this.nodes.splice(0, 20);
+    }
+
+    this.touchX = x; this.touchY = y;
+    this.touchX = x; this.touchY = y;
+    this.lastX = x; this.lastY = y;
+    this.render();
+  }
+
+  render() {
+    const ctx = this.ctx;
+    const now = Date.now();
+
+    // Slow auto-rotation
+    this.rotY += 0.0004;
+    this.rotX += 0.0002;
+
+    // Fade background very slowly — trails persist
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.fillRect(0, 0, this.W, this.H);
+
+    // Remove dead nodes
+    this.nodes = this.nodes.filter(n => now - n.born < n.life);
+    if (this.nodes.length < 2) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, this.W, this.H);
+      return;
+    }
+
+    // Project all nodes
+    const proj = this.nodes.map(n => {
+      const p = this.project(n.nx, n.ny, n.nz);
+      const age = (now - n.born) / n.life;
+      return { ...p, age, node: n };
+    });
+
+    // Draw edges between nearby nodes — connect to up to 3 nearest neighbours
+    const CONNECT_DIST = this.W * 0.55; // max screen-space connection distance
+    for (let i = 0; i < proj.length; i++) {
+      const a = proj[i];
+      // Collect distances to all other nodes
+      const dists = [];
+      for (let j = 0; j < proj.length; j++) {
+        if (i === j) continue;
+        const b = proj[j];
+        const d = Math.hypot(a.sx - b.sx, a.sy - b.sy);
+        if (d < CONNECT_DIST) dists.push({ j, d });
+      }
+      // Sort and take 3 nearest
+      dists.sort((a, b) => a.d - b.d);
+      const neighbours = dists.slice(0, 3);
+
+      for (const { j, d } of neighbours) {
+        const b = proj[j];
+        const proximity = 1 - d / CONNECT_DIST;
+        const ageFade = Math.pow(1 - Math.max(a.age, proj[j].age), 2);
+        const alpha = proximity * ageFade * 0.7;
+        if (alpha < 0.01) continue; // skip near-invisible edges entirely
+        // Depth-based brightness — front nodes brighter
+        const brightness = 55 + a.depth * 40;
+        // Line width tapers with depth
+        const lw = 0.4 + a.depth * 1.2;
+
+        ctx.beginPath();
+        ctx.moveTo(a.sx, a.sy);
+        ctx.lineTo(b.sx, b.sy);
+        ctx.strokeStyle = `rgba(${brightness+60},${brightness+60},${brightness+60},${alpha})`;
+        ctx.lineWidth = lw;
+        ctx.stroke();
+      }
+    }
+
+    // Draw nodes as small dots — front nodes bigger and brighter
+    for (const p of proj) {
+      const ageFade = Math.pow(1 - p.age, 2);
+      const r = Math.max(0.1, 1 + p.depth * 2.5);
+      const bright = Math.round(120 + p.depth * 135);
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${bright},${bright},${bright},${ageFade * 0.9})`;
+      ctx.fill();
+    }
+
+    // Store proj for tick() to use for line drawing
+    this._lastProj = proj;
+  }
+
+  tick() {
+    this.render();
+    // Always show dot at current XY position (even when not touching)
+    if (typeof xyX !== 'undefined' && this.octx) {
+      const px = xyX * this.W;
+      const py = (1 - xyY) * this.H;
+      this.octx.clearRect(0, 0, this.W, this.H);
+      // Line to nearest node if available
+      const proj = this._lastProj;
+      if (proj && proj.length > 0) {
+        let nearest = proj[0], nearDist = Infinity;
+        for (const p of proj) {
+          const d = Math.hypot(p.sx - px, p.sy - py);
+          if (d < nearDist) { nearDist = d; nearest = p; }
+        }
+        this.octx.beginPath();
+        this.octx.moveTo(px, py);
+        this.octx.lineTo(nearest.sx, nearest.sy);
+        this.octx.strokeStyle = 'rgba(255,255,255,0.4)';
+        this.octx.lineWidth = 0.75;
+        this.octx.stroke();
+      }
+      this.octx.fillStyle = '#ffffff';
+      this.octx.fillRect(Math.round(px) - 3, Math.round(py) - 3, 6, 6);
+    }
+  }
+}
+
+// ─── SCALES ──────────────────────────────────────────────────────────────────
+const SCALES = {
+  HIJAZ:      [0,1,4,5,7,8,11],
+  BAYATI:     [0,1,3,5,7,8,10],
+  PHRYG_DOM:  [0,1,4,5,7,8,10],
+  W_AFRICAN:  [0,2,4,7,9],
+  DOUBLE_HARM:[0,1,4,5,7,8,11],
+  MIN_PENT:   [0,3,5,7,10],
+  OCTATONIC:  [0,1,3,4,6,7,9,10],
+  DORIAN:     [0,2,3,5,7,9,10],
+  MIXOLYDIAN: [0,2,4,5,7,9,10],
+  LYDIAN:     [0,2,4,6,7,9,11],
+  PERSIAN:    [0,1,4,5,6,8,11],
+  HUNG_MIN:   [0,2,3,6,7,8,11],
+};
+const SCALE_NAMES = Object.keys(SCALES);
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+function noteToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+
+function getScaleNote(scaleIdx, noteStep, octave) {
+  octave = (octave === undefined || octave === null) ? 2 : octave;
+  const scale = SCALES[SCALE_NAMES[scaleIdx]];
+  const idx = noteStep % scale.length;
+  const oct = octave + Math.floor(noteStep / scale.length);
+  return 36 + scale[idx] + oct * 12;
+}
+
+// ─── AUDIO STATE ─────────────────────────────────────────────────────────────
+let audioCtx, masterGain, compressor, limiter, analyser, vuData;
+let kickPan, snarePan, tomPanL, tomPanR, v1Pan, v2PanL, v2PanR;
+let voice1 = null, voice2 = null;
+let currentScaleIdx = 0;
+let currentNoteIdx = 0;
+let v1Enabled = true, v2Enabled = true;
+let v1Stutter = false;      // gated stutter mode
+let v1StutterLastOpen = -1; // tracks last gate state to avoid redundant reschedules
+let v1StutterWasLong = false;
+let v1StutterHoldTimer = null;
+// Stutter gate patterns per zone — 16 steps, 1=open 0=closed
+// Derived from kick/snare gaps to lock rhythmically
+const STUTTER_PATTERNS = [
+  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], // sparse: quarter note chop
+  [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0], // groove: 8th note chop
+  [1,1,0,1, 1,1,0,1, 1,1,0,1, 1,1,0,1], // dense: syncopated 16ths
+  [1,0,1,1, 0,1,1,0, 1,1,0,1, 0,1,1,0], // chaos: shifting 16th pattern
+];
+let xyX = 0.31, xyY = 0.31;
+
+// XY gesture buffer — records raw touches, downsampled to 64 frames on each touch end
+// XY ring buffer — samples position every step, loops 64 steps behind write head
+const XY_BUF = 64;
+const xyBuf = Array.from({length: XY_BUF}, () => ({x: 0.31, y: 0.31, px: 0, py: 0}));
+let xyBufHead = 0; // always writing here, reading from 64 steps behind
+let snareComplexity = (Math.floor(14 / 2) - 5) / 13; // 5 below center
+let drumsEnabled = true;
+let selectedBpm = 90; // set on init screen, not by XY
+let step16 = 0, step8 = 0;
+
+function makeDistortionCurve(k) {
+  const n = 256, curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2 / n) - 1;
+    curve[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+  }
+  return curve;
+}
+
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = -18;
+  compressor.ratio.value = 6;
+  compressor.attack.value = 0.003;
+  compressor.release.value = 0.15;
+
+  limiter = audioCtx.createDynamicsCompressor();
+  limiter.threshold.value = -2;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.001;
+  limiter.release.value = 0.05;
+
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.75;
+
+  // Stereo bus nodes — each voice/drum routes through its own panner
+  kickPan   = audioCtx.createStereoPanner(); kickPan.pan.value   =  0.0;  // kick centre
+  snarePan  = audioCtx.createStereoPanner(); snarePan.pan.value  =  0.15; // snare slight right
+  tomPanL   = audioCtx.createStereoPanner(); tomPanL.pan.value   = -0.7;  // hi/rack tom left
+  tomPanR   = audioCtx.createStereoPanner(); tomPanR.pan.value   =  0.7;  // floor tom right
+  v1Pan     = audioCtx.createStereoPanner(); v1Pan.pan.value     = -0.4;  // feedback drone left
+  v2PanL    = audioCtx.createStereoPanner(); v2PanL.pan.value    = -0.85; // drone L channel
+  v2PanR    = audioCtx.createStereoPanner(); v2PanR.pan.value    =  0.85; // drone R channel
+
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  vuData = new Uint8Array(analyser.frequencyBinCount);
+
+  // All panners → compressor → limiter → analyser → out
+  const panBus = [kickPan, snarePan, tomPanL, tomPanR, v1Pan, v2PanL, v2PanR];
+  panBus.forEach(p => p.connect(compressor));
+  masterGain.connect(compressor); // fallback for any nodes routed to masterGain directly
+  compressor.connect(limiter);
+  limiter.connect(analyser);
+  analyser.connect(audioCtx.destination);
+
+  buildVoice1();
+  buildVoice2();
+
+  // Rhythm engine — step interval driven by X (tempo), pattern by X+Y zone
+  scheduleNextStep();
+  v2Interval = setInterval(stepV2, V2_NOTE_MS);
+  epianoSeq = generateEpianoPattern(); // lock in initial pattern
+  setTimeout(() => { stepV2(); startV2FilterLFO(); }, 100); // startV2FilterLFO resets filter position
+  // E.Piano runs inside onStep every 2 steps (8th notes) — no separate timer
+  setInterval(updateVU, 60);
+}
+
+function buildVoice1() {
+  if (!audioCtx) return;
+  if (voice1) {
+    try { voice1.osc.stop(); } catch(e){}
+    try { voice1.driveGain.disconnect(); } catch(e){}
+    try { voice1.shaper.disconnect(); } catch(e){}
+    try { voice1.lpFilter.disconnect(); } catch(e){}
+    try { voice1.feedbackGain.disconnect(); } catch(e){}
+    try { voice1.fbDelay.disconnect(); } catch(e){}
+    try { voice1.bpFilter.disconnect(); } catch(e){}
+    try { voice1.swellGain.disconnect(); } catch(e){}
+    voice1 = null;
+  }
+
+  const midi = getScaleNote(currentScaleIdx, currentNoteIdx, 0);
+  const freq = noteToFreq(midi);
+
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.value = freq;
+
+  const driveGain = audioCtx.createGain();
+  driveGain.gain.value = 3.0;
+
+  const shaper = audioCtx.createWaveShaper();
+  shaper.curve = makeDistortionCurve(80);
+  shaper.oversample = '4x';
+
+  const lpFilter = audioCtx.createBiquadFilter();
+  lpFilter.type = 'lowpass';
+  lpFilter.frequency.value = 1800;
+  lpFilter.Q.value = 1.2;
+
+  const bpFilter = audioCtx.createBiquadFilter();
+  bpFilter.type = 'bandpass';
+  bpFilter.frequency.value = freq;
+  bpFilter.Q.value = 12;
+
+  const feedbackGain = audioCtx.createGain();
+  feedbackGain.gain.value = 0.4;
+
+  // 1-sample delay breaks the Web Audio cycle restriction
+  const fbDelay = audioCtx.createDelay(0.1);
+  fbDelay.delayTime.value = 1 / audioCtx.sampleRate;
+
+  const swellGain = audioCtx.createGain();
+  swellGain.gain.value = v1Enabled ? 0.8 : 0;
+
+  // Main path: osc -> drive -> shaper -> lp -> swell -> out
+  osc.connect(driveGain);
+  driveGain.connect(shaper);
+  shaper.connect(lpFilter);
+  lpFilter.connect(swellGain);
+  swellGain.connect(v1Pan || masterGain);
+
+  // Feedback path with 1-sample delay to satisfy Web Audio acyclicity requirement
+  lpFilter.connect(feedbackGain);
+  feedbackGain.connect(fbDelay);
+  fbDelay.connect(bpFilter);
+  bpFilter.connect(driveGain);
+
+  osc.start();
+  voice1 = { osc, bpFilter, lpFilter, shaper, driveGain, feedbackGain, fbDelay, swellGain, midi };
+  applyXY();
+}
+
+function buildVoice2() {
+  if (!audioCtx) return;
+  if (voice2) {
+    try { voice2.oscLL.stop(); voice2.oscLR.stop(); voice2.oscRL.stop(); voice2.oscRR.stop(); voice2.lfo.stop(); } catch(e){}
+    try { voice2.leftMix.disconnect(); } catch(e){}
+    try { voice2.rightMix.disconnect(); } catch(e){}
+    try { voice2.merger.disconnect(); } catch(e){}
+    try { voice2.lpFilter.disconnect(); } catch(e){}
+    try { voice2.v2Gain.disconnect(); } catch(e){}
+    try { voice2.v2FadeGain.disconnect(); } catch(e){}
+    voice2 = null;
+  }
+
+  const midi = getScaleNote(currentScaleIdx, currentNoteIdx, 1);
+  const freq = noteToFreq(midi);
+  const t = audioCtx.currentTime;
+
+  const merger = audioCtx.createChannelMerger(2);
+
+  const oscLL = audioCtx.createOscillator(); oscLL.type = 'sawtooth';
+  const oscLR = audioCtx.createOscillator(); oscLR.type = 'sawtooth';
+  oscLL.frequency.value = freq;
+  oscLR.frequency.value = freq * Math.pow(2, 22/1200);
+
+  const oscRL = audioCtx.createOscillator(); oscRL.type = 'sawtooth';
+  const oscRR = audioCtx.createOscillator(); oscRR.type = 'sawtooth';
+  oscRL.frequency.value = freq;
+  oscRR.frequency.value = freq * Math.pow(2, -22/1200);
+
+  const lfo = audioCtx.createOscillator();
+  lfo.frequency.value = 0.18;
+
+  const lfoGainL = audioCtx.createGain();
+  lfoGainL.gain.value = freq * (Math.pow(2, 55/1200) - 1);
+  const lfoGainR = audioCtx.createGain();
+  lfoGainR.gain.value = -(freq * (Math.pow(2, 40/1200) - 1));
+
+  lfo.connect(lfoGainL); lfoGainL.connect(oscLR.frequency);
+  lfo.connect(lfoGainR); lfoGainR.connect(oscRR.frequency);
+
+  const leftMix = audioCtx.createGain(); leftMix.gain.value = 0.5;
+  const rightMix = audioCtx.createGain(); rightMix.gain.value = 0.5;
+
+  oscLL.connect(leftMix); oscLR.connect(leftMix);
+  oscRL.connect(rightMix); oscRR.connect(rightMix);
+
+  // Route L and R separately through wide stereo panners
+  const lpFilterL = audioCtx.createBiquadFilter();
+  lpFilterL.type = 'lowpass'; lpFilterL.Q.value = 18; lpFilterL.frequency.value = 80;
+  const lpFilterR = audioCtx.createBiquadFilter();
+  lpFilterR.type = 'lowpass'; lpFilterR.Q.value = 18; lpFilterR.frequency.value = 80;
+
+  const v2Gain = audioCtx.createGain();
+  v2Gain.gain.value = v2Enabled ? 0.28 : 0;
+
+  // Also keep a merged lpFilter reference for sweep automation
+  const lpFilter = lpFilterL; // used for freq sweep (both share same automation below)
+
+  leftMix.connect(lpFilterL); lpFilterL.connect(v2Gain);
+  rightMix.connect(lpFilterR); lpFilterR.connect(v2Gain);
+
+  // Dedicated fade gain — toggle uses this, duck uses v2Gain, they never conflict
+  const v2FadeGain = audioCtx.createGain();
+  v2FadeGain.gain.value = v2Enabled ? 1 : 0;
+  v2Gain.connect(v2FadeGain);
+  v2FadeGain.connect(v2PanL || masterGain);
+  v2FadeGain.connect(v2PanR || masterGain);
+
+  oscLL.start(); oscLR.start(); oscRL.start(); oscRR.start(); lfo.start();
+  // Reset filter position on rebuild
+  if (typeof startV2FilterLFO === 'function') startV2FilterLFO();
+
+  // LFO owns the filter — no initial ramp scheduled here
+  voice2 = { oscLL, oscLR, oscRL, oscRR, lfo, leftMix, rightMix, merger, lpFilter, lpFilterR, v2Gain, v2FadeGain, freq, noteDur: 2.0, midi };
+  applyXY();
+}
+
+function applyXY() {
+  if (!audioCtx) return;
+  const filterFreq = 80 + Math.pow(xyX, 1.8) * 4920;
+
+  if (voice1 && v1Enabled) {
+    voice1.lpFilter.frequency.setTargetAtTime(filterFreq * 0.6, audioCtx.currentTime, 0.05);
+    voice1.feedbackGain.gain.setTargetAtTime(0.2 + (1 - xyY) * 0.45, audioCtx.currentTime, 0.08);
+    // Compensate for brightness increase at high X — roll back gain as filter opens
+    // Skip swell update when stutter is active — stutter owns swellGain
+    if (!v1Stutter) {
+      const v1Vol = (0.35 + xyY * 0.25) * (1 - xyX * 0.45);
+      voice1.swellGain.gain.setTargetAtTime(v1Vol, audioCtx.currentTime, 0.12);
+    }
+    voice1.driveGain.gain.setTargetAtTime(3.0, audioCtx.currentTime, 0.05);
+  }
+  // V2 is a drone — its filter and amp are owned by stepV2, applyXY leaves it alone
+}
+
+// 808 kick: starts at ~160Hz, drops to the drone root note over the decay
+// Classic thump shape — high start, exponential fall into the pitched tail
+function kick808(midi) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+
+  // Root note one octave below the drone (deep sub territory)
+  const tailFreq = Math.max(30, noteToFreq(midi - 12));
+
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+
+  // Pitch: punch starts at 160Hz, snaps down to tailFreq in 60ms, then holds steady
+  osc.frequency.setValueAtTime(160, t);
+  osc.frequency.exponentialRampToValueAtTime(tailFreq, t + 0.06);
+
+  // Low pass to keep it bassy, cut harsh transient frequencies
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 180;
+  lp.Q.value = 0.5;
+
+  // Amp envelope: very fast attack, long 800ms decay for that 808 sustain
+  const kickGain = audioCtx.createGain();
+  kickGain.gain.setValueAtTime(0.001, t);
+  kickGain.gain.linearRampToValueAtTime(1.4, t + 0.003);
+  kickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+
+  osc.connect(lp);
+  lp.connect(kickGain);
+  kickGain.connect(kickPan || masterGain);
+
+  osc.start(t);
+  osc.stop(t + 0.85);
+
+  // Duck V2 on kick — only when fully on and not fading in/out
+  if (voice2 && v2Enabled && v2FullyOn) {
+    const beatSec = (getStepIntervalMs() * 4) / 1000;
+    voice2.v2Gain.gain.setValueAtTime(0.28, t);
+    voice2.v2Gain.gain.linearRampToValueAtTime(0.015, t + 0.025);
+    voice2.v2Gain.gain.linearRampToValueAtTime(0.28, t + beatSec);
+  }
+}
+
+// ─── RHYTHM ENGINE ───────────────────────────────────────────────────────────
+// X axis = filter cutoff (dark left, bright right)
+// Y axis = arrangement zone:
+//   Y 0.0-0.25  sparse — only kick, long pauses, V1 note changes rarely
+//   Y 0.25-0.5  groove — kick + V2 changes every 4 steps
+//   Y 0.5-0.75  dense  — kick + V1 + V2 interleaved, shorter note durations
+//   Y 0.75-1.0  chaos  — rapid V1+V2 changes every 1-2 steps, stuttering kicks
+
+let stepTimeout = null;
+let v2Interval = null;
+const V2_NOTE_MS = 3500; // V2 changes note every 3.5s regardless of tempo
+
+function stepV2() {
+  if (!audioCtx || !voice2 || !v2Enabled) return;
+  const degree = v2Seq[v2Step % 16];
+  v2Step = (v2Step + 1) % 16;
+  if (degree === -1) return;
+  const t = audioCtx.currentTime;
+  const midi = getScaleNote(currentScaleIdx, degree, 1);
+  const freq = noteToFreq(midi);
+
+  // Slow glide — always feels like a drone
+  voice2.oscLL.frequency.setTargetAtTime(freq, t, 0.18);
+  voice2.oscRL.frequency.setTargetAtTime(freq, t, 0.18);
+  voice2.oscLR.frequency.setTargetAtTime(freq * Math.pow(2, 22/1200), t, 0.18);
+  voice2.oscRR.frequency.setTargetAtTime(freq * Math.pow(2, -22/1200), t, 0.18);
+
+  // Filter is driven by a continuous oscillating LFO (startV2FilterLFO) — no per-note scheduling
+
+  // Amp: ramp up once on first note, then sustain forever — no fade out between notes
+  if (voice2.v2Gain.gain.value < 0.1) {
+    voice2.v2Gain.gain.cancelScheduledValues(t);
+    voice2.v2Gain.gain.setValueAtTime(0.001, t);
+    voice2.v2Gain.gain.linearRampToValueAtTime(0.28, t + 0.12);
+  }
+
+  updateNoteDisplay(midi);
+}
+
+// V2 filter sweep — driven by step clock, 32 steps per full sine cycle
+let v2FilterStep = 0;
+let v2FilterLocked = false;
+
+function updateV2Filter() {
+  if (!audioCtx || !voice2 || v2FilterLocked) return;
+  try {
+    const t = audioCtx.currentTime;
+    const shaped = (Math.sin((v2FilterStep / 64) * Math.PI * 2) + 1) / 2;
+    const freq = 200 + shaped * 3300;
+    const stepMs = getStepIntervalMs() / 1000;
+    voice2.lpFilter.frequency.cancelScheduledValues(t);
+    voice2.lpFilter.frequency.linearRampToValueAtTime(freq, t + stepMs);
+    if (voice2.lpFilterR) {
+      voice2.lpFilterR.frequency.cancelScheduledValues(t);
+      voice2.lpFilterR.frequency.linearRampToValueAtTime(freq, t + stepMs);
+    }
+    v2FilterStep = (v2FilterStep + 1) % 64;
+  } catch(e) { console.warn('updateV2Filter:', e); }
+}
+
+function startV2FilterLFO() {
+  // Do NOT reset v2FilterStep — filter sweep stays locked to step clock continuously
+  // Only call this to re-anchor filter on initial build or scale change
+}
+
+
+// 16-step melodic sequences for V1 and V2
+// Values are scale degree indices; -1 = rest (hold previous note)
+let v1Seq = [0,0,2,4, 1,1,3,5, 0,2,4,6, 3,1,0,2];
+let v2Seq = [0,4,2,5, 3,1,4,0, 2,5,3,6, 1,4,0,3];
+let v1Step = 0;
+let v2Step = 0;
+
+function generateMelodicSeq(length, scaleLen) {
+  // Builds a seq with melodic contour: stepwise motion, occasional leaps, rests, repeats
+  const seq = [];
+  let pos = Math.floor(Math.random() * scaleLen);
+  for (let i = 0; i < length; i++) {
+    const r = Math.random();
+    if (r < 0.12) {
+      seq.push(-1); // rest — hold
+    } else if (r < 0.55) {
+      // stepwise: move +1 or -1
+      pos = Math.max(0, Math.min(scaleLen-1, pos + (Math.random() < 0.5 ? 1 : -1)));
+      seq.push(pos);
+    } else if (r < 0.78) {
+      // leap: +2 to +4 or -2 to -4
+      const leap = (Math.random() < 0.5 ? 1 : -1) * (2 + Math.floor(Math.random() * 3));
+      pos = Math.max(0, Math.min(scaleLen-1, pos + leap));
+      seq.push(pos);
+    } else {
+      // repeat current
+      seq.push(pos);
+    }
+  }
+  return seq;
+}
+
+function randomizeMelody() {
+  const scaleLen = SCALES[SCALE_NAMES[currentScaleIdx]].length;
+  // Clamp currentNoteIdx to valid range for new scale
+  currentNoteIdx = currentNoteIdx % scaleLen;
+  v1Seq = generateMelodicSeq(16, scaleLen);
+  v2Seq = generateMelodicSeq(16, scaleLen);
+  epianoSeq = generateEpianoPattern(); // use proper {deg,octaveUp} format
+  if (karplusSeq) karplusSeq = generateKarplusPattern();
+  v1Step = 0; v2Step = 0; epianoStep = 0; karplusStep = 0;
+  // Flash the graffiti canvas to signal the change
+  if (gfx) {
+    const ctx = gfx.ctx;
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fillRect(0,0,gfx.W,gfx.H);
+  }
+}
+
+function getStepIntervalMs() {
+  // 16th note duration from BPM: (60000 / bpm) / 4
+  return (60000 / selectedBpm) / 4;
+}
+
+function getArrangementZone() {
+  if (xyY < 0.25) return 0; // sparse
+  if (xyY < 0.5)  return 1; // groove
+  if (xyY < 0.75) return 2; // dense
+  return 3;                  // chaos
+}
+
+function scheduleNextStep() {
+  if (!audioCtx) return;
+  const ms = getStepIntervalMs();
+  stepTimeout = setTimeout(() => {
+    onStep();
+    scheduleNextStep();
+  }, ms);
+}
+
+// Deterministic kick patterns per zone — 16-step loops, 1=kick 0=rest
+// zone 0 sparse:  kick on 1 and 9  (half-time feel)
+// zone 1 groove:  kick on 1,5,9,13 (four-on-the-floor)
+// zone 2 dense:   kick on 1,3,5,7,9,11,13,15 (every other step, driving)
+// zone 3 chaos:   kick on 1,2,4,5,7,9,10,12,13,15 (syncopated but fixed)
+const KICK_PATTERNS = [
+  [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
+  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+  [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+  [1,1,0,1, 1,0,1,0, 1,1,0,1, 1,0,1,0],
+];
+
+// 12 snare patterns from sparsest to densest — slider steps through all of them
+// Each pattern is meaningfully different from its neighbours
+const ALL_SNARE_PATTERNS = [
+  [0,0,0,0, 0,0,0,0, 0,0,0,0, 1,0,0,0], // 0: one hit, bar end only
+  [0,0,0,0, 1,0,0,0, 0,0,0,0, 0,0,0,0], // 1: one hit, bar midpoint
+  [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // 2: pure backbeat (2+4)
+  [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0], // 3: half-time displaced
+  [0,0,0,0, 1,0,0,1, 0,0,0,0, 1,0,0,0], // 4: backbeat + ghost 16th
+  [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0], // 5: steady upbeat every 4
+  [0,0,1,0, 1,0,0,0, 0,0,1,0, 1,0,0,0], // 6: backbeat + anticipation
+  [0,1,0,0, 0,0,1,0, 0,1,0,0, 0,0,1,0], // 7: syncopated push
+  [0,0,1,0, 0,1,0,0, 0,0,1,0, 0,1,0,1], // 8: syncopated with tail
+  [0,1,0,1, 0,0,1,0, 0,1,0,0, 0,0,1,0], // 9: busy cross-rhythm
+  [0,0,1,0, 0,1,0,1, 0,0,1,0, 0,1,0,1], // 10: dense offbeats
+  [0,1,0,1, 0,1,0,1, 0,0,1,0, 0,1,0,1], // 11: driving 16ths + accent
+  [0,1,1,0, 1,0,1,0, 0,1,1,0, 1,0,1,0], // 12: very dense, syncopated
+  [0,1,1,0, 1,0,1,1, 0,1,0,1, 1,0,1,1], // 13: near-continuous
+];
+
+function getSnarePattern(step) {
+  const idx = Math.min(ALL_SNARE_PATTERNS.length - 1,
+    Math.floor(snareComplexity * ALL_SNARE_PATTERNS.length));
+  return ALL_SNARE_PATTERNS[idx][step];
+}
+
+// ─── HI-HAT ──────────────────────────────────────────────────────────────────
+let hihatEnabled = false;
+let hihatWasLongPress = false;
+let hihatHoldTimer = null;
+
+// Hihat pattern derived from kick/snare interplay:
+// plays on steps where NEITHER kick NOR snare hits — fills the gaps
+// open hihat on longer gaps, closed on shorter ones
+function getHihatPattern(zone, pat) {
+  if (!hihatEnabled) return null;
+  const kickHit = KICK_PATTERNS[zone][pat];
+  const snareHit = getSnarePattern(pat);
+  if (kickHit || snareHit) return null; // never clash with kick or snare
+
+  // Check gap size — how many steps since last hit
+  let gapSize = 0;
+  for (let i = 1; i <= 4; i++) {
+    const prevPat = (pat - i + 16) % 16;
+    if (KICK_PATTERNS[zone][prevPat] || getSnarePattern(prevPat)) break;
+    gapSize++;
+  }
+  // Open hat on large gaps (zone-dependent), closed on short gaps
+  const openThreshold = [3, 2, 2, 1][zone];
+  return gapSize >= openThreshold ? 'open' : 'closed';
+}
+
+function hihat(type) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+
+  // White noise source
+  const bufLen = Math.floor(audioCtx.sampleRate * (type === 'open' ? 0.25 : 0.04));
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buf;
+
+  // Highpass — tight metallic character
+  const hp = audioCtx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = type === 'open' ? 6000 : 8000;
+  hp.Q.value = 0.8;
+
+  // Bandpass adds shimmer
+  const bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 10000;
+  bp.Q.value = 0.5;
+
+  const hihatGain = audioCtx.createGain();
+  if (type === 'open') {
+    hihatGain.gain.setValueAtTime(0.001, t);
+    hihatGain.gain.linearRampToValueAtTime(0.40, t + 0.002);
+    hihatGain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+  } else {
+    hihatGain.gain.setValueAtTime(0.001, t);
+    hihatGain.gain.linearRampToValueAtTime(0.32, t + 0.001);
+    hihatGain.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+  }
+
+  // Pan slightly left to separate from snare
+  const pan = audioCtx.createStereoPanner();
+  pan.pan.value = -0.3;
+
+  noise.connect(hp); hp.connect(bp); bp.connect(hihatGain);
+  hihatGain.connect(pan); pan.connect(masterGain);
+  noise.start(t); noise.stop(t + bufLen / audioCtx.sampleRate + 0.01);
+}
+
+function snare() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+
+  // Noise source via white noise buffer
+  const bufLen = audioCtx.sampleRate * 0.12;
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buf;
+
+  // Tight bandpass — snare body sits around 180-220Hz, crack around 1.2kHz
+  const bodyBP = audioCtx.createBiquadFilter();
+  bodyBP.type = 'bandpass';
+  bodyBP.frequency.value = 195;
+  bodyBP.Q.value = 0.8;
+
+  const crackHP = audioCtx.createBiquadFilter();
+  crackHP.type = 'highpass';
+  crackHP.frequency.value = 1200;
+  crackHP.Q.value = 0.5;
+
+  // Body gain — punchy low thud
+  const bodyGain = audioCtx.createGain();
+  bodyGain.gain.setValueAtTime(0.001, t);
+  bodyGain.gain.linearRampToValueAtTime(0.99, t + 0.002);
+  bodyGain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+
+  // Crack gain — tight high snap
+  const crackGain = audioCtx.createGain();
+  crackGain.gain.setValueAtTime(0.001, t);
+  crackGain.gain.linearRampToValueAtTime(0.60, t + 0.001);
+  crackGain.gain.exponentialRampToValueAtTime(0.001, t + 0.055);
+
+  // Tonal sine component — gives the snare a slight pitched center
+  const tone = audioCtx.createOscillator();
+  tone.type = 'sine';
+  tone.frequency.setValueAtTime(220, t);
+  tone.frequency.exponentialRampToValueAtTime(160, t + 0.04);
+  const toneGain = audioCtx.createGain();
+  toneGain.gain.setValueAtTime(0.001, t);
+  toneGain.gain.linearRampToValueAtTime(0.38, t + 0.002);
+  toneGain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+
+  // Mix all three layers into master
+  noise.connect(bodyBP); bodyBP.connect(bodyGain); bodyGain.connect(snarePan || masterGain);
+  noise.connect(crackHP); crackHP.connect(crackGain); crackGain.connect(snarePan || masterGain);
+  tone.connect(toneGain); toneGain.connect(snarePan || masterGain);
+
+  noise.start(t); noise.stop(t + 0.13);
+  tone.start(t); tone.stop(t + 0.07);
+}
+
+// ─── TOM ENGINE ──────────────────────────────────────────────────────────────
+let tomEnabled = false;
+let tomFillActive = false;
+let tomHoldTimer = null;
+
+// Sparse melodic tom patterns — 16 steps, value = scale degree offset (0-3), -1 = rest
+// Base pattern: tasteful, leaves space, melodically descends/rises across the bar
+let tomPattern = [
+  -1,-1,-1, 2,  -1,-1,-1,-1,  -1, 1,-1,-1,  -1,-1, 0,-1
+];
+
+// Generate a sparse tom pattern — max 4-5 hits, melodically shaped
+function generateTomPattern() {
+  const scaleLen = SCALES[SCALE_NAMES[currentScaleIdx]].length;
+  const pat = new Array(16).fill(-1);
+  // Place 3-5 hits, prefer off-kick positions, with melodic contour
+  const hitCount = 3 + Math.floor(Math.random() * 3);
+  // Avoid steps 0,4,8,12 (kick-heavy positions in most patterns)
+  const candidates = [2,3,5,6,7,9,10,11,13,14,15];
+  const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, hitCount);
+  // Assign melodic degrees that descend across the bar (high → low = tension → resolve)
+  const degrees = [3,2,1,0,2,1,0,3].slice(0, hitCount).sort(() => Math.random()-0.5);
+  shuffled.forEach((pos, i) => { pat[pos] = degrees[i] % scaleLen; });
+  return pat;
+}
+
+// Generate a fill — denser, more frantic, still melodic
+function generateTomFill() {
+  const scaleLen = SCALES[SCALE_NAMES[currentScaleIdx]].length;
+  const pat = new Array(16).fill(-1);
+  // 8-12 hits, rapid movement
+  const hitCount = 8 + Math.floor(Math.random() * 5);
+  const candidates = [...Array(16).keys()];
+  const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, hitCount).sort((a,b)=>a-b);
+  // Descending melodic run for fill feel
+  shuffled.forEach((pos, i) => {
+    pat[pos] = (hitCount - 1 - i) % scaleLen;
+  });
+  return pat;
+}
+
+// Tom synth — pitched noise + sine, tuned to scale degree
+// hi tom (deg 3) = panned left, floor tom (deg 0) = panned right
+// isFill = true boosts volume by ~4dB
+function playTom(degree, isFill) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const vol = isFill ? 1.6 : 1.1; // fill is louder
+
+  // Pitch: floor=100Hz, rack=140Hz, hi-rack=190Hz, hi=260Hz
+  const tomFreqs = [100, 140, 190, 260];
+  const freq = tomFreqs[Math.min(degree, 3)];
+
+  // Pan: high toms (deg 2-3) go left, low toms (deg 0-1) go right — wide spread
+  // Use tomPanL for high, tomPanR for low
+  const panNode = (degree >= 2) ? (tomPanL || masterGain) : (tomPanR || masterGain);
+
+  // Pitched sine body
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq * 1.4, t);
+  osc.frequency.exponentialRampToValueAtTime(freq, t + 0.025);
+
+  const oscGain = audioCtx.createGain();
+  oscGain.gain.setValueAtTime(0.001, t);
+  oscGain.gain.linearRampToValueAtTime(vol, t + 0.003);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+
+  // Short noise transient for attack click
+  const bufLen = Math.floor(audioCtx.sampleRate * 0.04);
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * (1 - i/bufLen);
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buf;
+
+  const noiseBP = audioCtx.createBiquadFilter();
+  noiseBP.type = 'bandpass';
+  noiseBP.frequency.value = freq * 1.2;
+  noiseBP.Q.value = 1.5;
+
+  const noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0.001, t);
+  noiseGain.gain.linearRampToValueAtTime(vol * 0.4, t + 0.002);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+
+  osc.connect(oscGain); oscGain.connect(panNode);
+  noise.connect(noiseBP); noiseBP.connect(noiseGain); noiseGain.connect(panNode);
+
+  osc.start(t); osc.stop(t + 0.2);
+  noise.start(t); noise.stop(t + 0.05);
+}
+
+// ─── ELECTRIC PIANO ──────────────────────────────────────────────────────────
+let epianoEnabled = false;
+let epianoSeq = null; // generated on first initAudio
+let epianoStep = 0;
+let epianoOctave = 1;
+
+
+// Generates an adventurous 4-note motif with leaps, direction changes, octave excursions
+// X = leap ambition (left=moderate, right=bold jumps + octave reach)
+// Y = variation across repeats (low=tight loop, high=each repeat adds something new)
+// Transpose existing epiano sequence to new V1 root without resetting loop position
+// Keeps the rhythmic pattern intact, just shifts pitches to fit new harmony
+function transposeEpianoToRoot(newRootDeg) {
+  if (!epianoSeq) return;
+  const scaleLen = SCALES[SCALE_NAMES[currentScaleIdx]].length;
+  const oldRoot = (newRootDeg - 2 + scaleLen) % scaleLen; // approximate old root
+  const shift = ((newRootDeg + 2) - oldRoot + scaleLen) % scaleLen; // 3rd above new root
+  epianoSeq = epianoSeq.map(entry => {
+    if (!entry || entry.deg === -1) return entry;
+    return { ...entry, deg: (entry.deg + shift) % scaleLen };
+  });
+}
+
+function generateEpianoPattern() {
+  const scaleLen = SCALES[SCALE_NAMES[currentScaleIdx]].length;
+  // X: leap up to half the scale + possible octave jump at high X
+  const maxLeap = 2 + Math.round(xyX * (scaleLen - 2));
+  const octaveReach = xyX > 0.6; // at high X, allow jumping an octave via midi offset
+
+  // Build an 8-note motif — longer than V1's typical 4-step phrase so it
+  // creates its own melodic identity and cross-rhythm against V1
+  const shape = Math.floor(Math.random() * 4);
+  const motif = [];
+  // Start from 3rd or 5th above V1 root — harmonic complement, not doubling
+  const startOffset = Math.random() < 0.6 ? 2 : 4;
+  let pos = (currentNoteIdx + startOffset) % scaleLen;
+  for (let i = 0; i < 8; i++) {
+    // Occasionally insert a rest for rhythmic interest
+    if (Math.random() < 0.08) { motif.push(-1); continue; }
+    motif.push(pos);
+    let dir;
+    if (shape === 0) dir = i < 4 ? 1 : -1;
+    else if (shape === 1) dir = i < 4 ? -1 : 1;
+    else if (shape === 2) dir = i % 2 === 0 ? 1 : -1;
+    else dir = Math.random() < 0.6 ? 1 : -1;
+    const leap = 1 + Math.floor(Math.random() * maxLeap);
+    pos = Math.max(0, Math.min(scaleLen - 1, pos + dir * leap));
+  }
+
+  // Tile 2x (8+8 = 16 steps) — second pass has light variation
+  const variationChance = 0.08 + xyY * 0.2;
+  const seq = [];
+  for (let rep = 0; rep < 2; rep++) {
+    for (let i = 0; i < 8; i++) {
+      const m = motif[i];
+      if (m === -1) { seq.push({ deg: -1 }); continue; }
+      if (rep === 0) {
+        seq.push({ deg: m, octaveUp: octaveReach && i === 2 && Math.random() < 0.35 });
+      } else if (Math.random() < variationChance) {
+        const v = Math.max(0, Math.min(scaleLen - 1, m + (Math.random() < 0.5 ? 1 : -1)));
+        seq.push({ deg: v, octaveUp: octaveReach && Math.random() < 0.2 });
+      } else {
+        seq.push({ deg: m, octaveUp: octaveReach && i === 2 && Math.random() < 0.2 });
+      }
+    }
+  }
+  return seq;
+}
+
+// Voice 0: MOOG BASS — sawtooth through resonant ladder-style lowpass, fat and round
+function playSawChorus(midi) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const freq = noteToFreq(midi);
+  const osc = audioCtx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = freq;
+  // Slight pitch drift — analog VCO instability
+  const drift = audioCtx.createOscillator(); drift.frequency.value = 0.3;
+  const driftAmt = audioCtx.createGain(); driftAmt.gain.value = freq * 0.003;
+  drift.connect(driftAmt); driftAmt.connect(osc.frequency);
+  const ampEnv = audioCtx.createGain();
+  ampEnv.gain.setValueAtTime(0.001, t);
+  ampEnv.gain.linearRampToValueAtTime(0.7, t + 0.008);
+  ampEnv.gain.exponentialRampToValueAtTime(0.3, t + 0.15);
+  ampEnv.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+  const out = makeEpianoOut(t, freq);
+  osc.connect(ampEnv); ampEnv.connect(out);
+  const dur = 1.3; osc.start(t); osc.stop(t+dur); drift.start(t); drift.stop(t+dur);
+}
+
+// Voice 1: VCO LEAD — square wave through bandpass, nasal and cutting
+function playFMRhodes(midi) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const freq = noteToFreq(midi);
+  const osc = audioCtx.createOscillator(); osc.type = 'square'; osc.frequency.value = freq;
+  // Bandpass tracks pitch — nasal character
+  const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass';
+  bp.frequency.value = freq * 2; bp.Q.value = 2 + xyY * 6;
+  const ampEnv = audioCtx.createGain();
+  ampEnv.gain.setValueAtTime(0.001, t);
+  ampEnv.gain.linearRampToValueAtTime(0.55, t + 0.005);
+  ampEnv.gain.exponentialRampToValueAtTime(0.18, t + 0.1);
+  ampEnv.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+  const out = makeEpianoOut(t, freq * 2);
+  osc.connect(bp); bp.connect(ampEnv); ampEnv.connect(out);
+  osc.start(t); osc.stop(t+1.2);
+}
+
+// Voice 2: RING MOD — sine ring-modulated by detuned sine, metallic wobble
+function playFMDual(midi) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const freq = noteToFreq(midi);
+  const carrier = audioCtx.createOscillator(); carrier.type = 'sine'; carrier.frequency.value = freq;
+  // Ring mod: modulator very close to carrier — subtle beating, not out of tune
+  const modFreq = freq * (1 + xyX * 0.04 + 0.005); // X: 1.005 to 1.045 ratio
+  const modulator = audioCtx.createOscillator(); modulator.type = 'sine'; modulator.frequency.value = modFreq;
+  const ringGain = audioCtx.createGain(); ringGain.gain.value = 0;
+  modulator.connect(ringGain.gain); // AM modulation
+  carrier.connect(ringGain);
+  const ampEnv = audioCtx.createGain();
+  ampEnv.gain.setValueAtTime(0.001, t);
+  ampEnv.gain.linearRampToValueAtTime(0.6, t + 0.004);
+  ampEnv.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+  const out = makeEpianoOut(t, freq * 1.5);
+  ringGain.connect(ampEnv); ampEnv.connect(out);
+  carrier.start(t); carrier.stop(t+1.2); modulator.start(t); modulator.stop(t+1.2);
+}
+
+// Voice 3: FUZZ TONE — triangle through overdrive and warm LP, fuzzy but musical
+function playPulse(midi) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const freq = noteToFreq(midi);
+  const osc = audioCtx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = freq;
+  // Slight analog drift
+  const drift = audioCtx.createOscillator(); drift.frequency.value = 0.5;
+  const driftAmt = audioCtx.createGain(); driftAmt.gain.value = freq * 0.004;
+  drift.connect(driftAmt); driftAmt.connect(osc.frequency);
+  // Fuzz — hard clipping waveshaper
+  const fuzz = audioCtx.createWaveShaper();
+  const fuzzCurve = new Float32Array(256);
+  const k = 20 + xyY * 60; // Y = more fuzz
+  for (let i = 0; i < 256; i++) {
+    const x = (i * 2 / 255) - 1;
+    fuzzCurve[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+  }
+  fuzz.curve = fuzzCurve; fuzz.oversample = '4x';
+  // Warm LP after fuzz — tames harshness
+  const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass';
+  lp.frequency.value = 1200 + xyX * 3000;
+  lp.Q.value = 1.2;
+  const ampEnv = audioCtx.createGain();
+  ampEnv.gain.setValueAtTime(0.001, t);
+  ampEnv.gain.linearRampToValueAtTime(0.5, t + 0.01);
+  ampEnv.gain.exponentialRampToValueAtTime(0.18, t + 0.2);
+  ampEnv.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+  const out = makeEpianoOut(t, freq);
+  osc.connect(fuzz); fuzz.connect(lp); lp.connect(ampEnv); ampEnv.connect(out);
+  const dur = 1.3;
+  osc.start(t); osc.stop(t+dur); drift.start(t); drift.stop(t+dur);
+}
+
+// Voice 4: THROATY — triangle through high-Q bandpass, vowel-like
+function playBell(midi) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const freq = noteToFreq(midi);
+  const osc = audioCtx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = freq;
+  // Slowly sweeping bandpass — throat formant
+  const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass';
+  const bpFreq = freq * (1.5 + xyX * 3);
+  bp.frequency.setValueAtTime(bpFreq * 0.5, t);
+  bp.frequency.linearRampToValueAtTime(bpFreq, t + 0.2);
+  bp.Q.value = 3 + xyY * 12;
+  const ampEnv = audioCtx.createGain();
+  ampEnv.gain.setValueAtTime(0.001, t);
+  ampEnv.gain.linearRampToValueAtTime(0.6, t + 0.04);
+  ampEnv.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+  const out = makeEpianoOut(t, bpFreq);
+  osc.connect(bp); bp.connect(ampEnv); ampEnv.connect(out);
+  osc.start(t); osc.stop(t+1.3);
+}
+
+// Voice 5: SINE BASS — pure sine through resonant LP, subby and round
+function playOrgan(midi) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const freq = noteToFreq(midi);
+  const osc = audioCtx.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq;
+  // Second harmonic adds presence
+  const osc2 = audioCtx.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = freq * 2;
+  const g2 = audioCtx.createGain(); g2.gain.value = 0.2 + xyX * 0.3;
+  const mix = audioCtx.createGain(); mix.gain.value = 0.8;
+  const ampEnv = audioCtx.createGain();
+  ampEnv.gain.setValueAtTime(0.001, t);
+  ampEnv.gain.linearRampToValueAtTime(0.7, t + 0.006);
+  ampEnv.gain.exponentialRampToValueAtTime(0.25, t + 0.2);
+  ampEnv.gain.exponentialRampToValueAtTime(0.001, t + 1.3);
+  const out = makeEpianoOut(t, freq * 1.5);
+  osc.connect(mix); osc2.connect(g2); g2.connect(mix);
+  mix.connect(ampEnv); ampEnv.connect(out);
+  osc.start(t); osc.stop(t+1.5); osc2.start(t); osc2.stop(t+1.5);
+}
+
+// Voice 6: TAPE ECHO — sine with short delay feedback, lo-fi warmth
+function playClavinet(midi) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const freq = noteToFreq(midi);
+  const osc = audioCtx.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq;
+  // Second harmonic for body
+  const osc2 = audioCtx.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = freq * 2;
+  const g2 = audioCtx.createGain(); g2.gain.value = 0.3;
+  const mix = audioCtx.createGain(); mix.gain.value = 0.7;
+  // Tape-style delay — short, dark, with feedback
+  const delay = audioCtx.createDelay(1.0);
+  delay.delayTime.value = 0.08 + xyX * 0.18; // X = delay time
+  const delayFeedback = audioCtx.createGain();
+  delayFeedback.gain.value = 0.35 + xyY * 0.3; // Y = more feedback
+  const delayLP = audioCtx.createBiquadFilter(); delayLP.type = 'lowpass';
+  delayLP.frequency.value = 900; // darken repeats like tape
+  // Amp envelope — medium attack, natural decay
+  const ampEnv = audioCtx.createGain();
+  ampEnv.gain.setValueAtTime(0.001, t);
+  ampEnv.gain.linearRampToValueAtTime(0.55, t + 0.015);
+  ampEnv.gain.exponentialRampToValueAtTime(0.15, t + 0.3);
+  ampEnv.gain.exponentialRampToValueAtTime(0.001, t + 1.4);
+  const out = makeEpianoOut(t, freq * 1.5);
+  osc.connect(mix); osc2.connect(g2); g2.connect(mix);
+  mix.connect(ampEnv); ampEnv.connect(out);
+  // Delay loop: ampEnv → delay → delayLP → feedback → delay, also → out
+  ampEnv.connect(delay);
+  delay.connect(delayLP); delayLP.connect(delayFeedback); delayFeedback.connect(delay);
+  delayLP.connect(out);
+  const dur = 1.6;
+  osc.start(t); osc.stop(t+dur); osc2.start(t); osc2.stop(t+dur);
+}
+
+// Voice 7: PULSE MOD — pulse wave with PWM via LFO, chorusing organic feel
+function playGlass(midi) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const freq = noteToFreq(midi);
+  const osc = audioCtx.createOscillator(); osc.type = 'square'; osc.frequency.value = freq;
+  // PWM via slow LFO on a second osc slightly detuned
+  const osc2 = audioCtx.createOscillator(); osc2.type = 'square';
+  osc2.frequency.value = freq * Math.pow(2, (3 + xyX * 8)/1200); // X widens detune
+  const pwmLFO = audioCtx.createOscillator(); pwmLFO.frequency.value = 1.5 + xyY * 3; // Y speeds up LFO
+  const pwmAmt = audioCtx.createGain(); pwmAmt.gain.value = freq * 0.008;
+  pwmLFO.connect(pwmAmt); pwmAmt.connect(osc2.frequency);
+  const mix = audioCtx.createGain(); mix.gain.value = 0.5;
+  const ampEnv = audioCtx.createGain();
+  ampEnv.gain.setValueAtTime(0.001, t);
+  ampEnv.gain.linearRampToValueAtTime(0.5, t + 0.007);
+  ampEnv.gain.exponentialRampToValueAtTime(0.18, t + 0.18);
+  ampEnv.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+  const out = makeEpianoOut(t, freq * 1.5);
+  osc.connect(mix); osc2.connect(mix); mix.connect(ampEnv); ampEnv.connect(out);
+  osc.start(t); osc2.start(t); pwmLFO.start(t);
+  osc.stop(t+1.3); osc2.stop(t+1.3); pwmLFO.stop(t+1.3);
+}
+
+
+function stepEpiano() {
+  if (!epianoEnabled || !audioCtx || !epianoSeq) return;
+  let degree, octaveUp;
+  if (epianoUnison) {
+    // Unison: read directly from V1's sequence at V1's current step position
+    // v1Step has already been incremented this tick, so read one behind
+    const unisonDegree = v1Seq[(v1Step - 1 + 16) % 16];
+    degree = unisonDegree === -1 ? -1 : unisonDegree;
+    octaveUp = false;
+  } else {
+    const entry = epianoSeq[epianoStep % 16];
+    epianoStep = (epianoStep + 1) % 16;
+    degree = entry && entry.deg !== undefined ? entry.deg : entry;
+    octaveUp = entry && entry.octaveUp;
+  }
+  if (degree !== -1 && degree !== null) {
+    const oct = epianoOctave + 1 + (octaveUp ? 1 : 0);
+    const midi = getScaleNote(currentScaleIdx, degree, oct);
+    playEpianoVoice(midi, pianoVoice);
+
+  }
+  // Pattern only regenerates on RAND MELODY — loops identically every 16 steps
+}
+
+
+
+// ─── PIANO VOICE SYSTEM ──────────────────────────────────────────────────────
+let pianoVoice = 0; // 0-7, set by slider
+
+const PIANO_LABELS = [
+  'MOOG BS', 'VCO LEAD', 'RING MOD', 'FUZZ',
+  'THROATY', 'SINE BS', 'TAPE ECH', 'PULSE MOD'
+];
+
+function playEpianoVoice(midi, voice) {
+  if (!audioCtx) return;
+  switch(voice) {
+    case 0: playSawChorus(midi); break;
+    case 1: playFMRhodes(midi); break;
+    case 2: playFMDual(midi); break;
+    case 3: playPulse(midi); break;
+    case 4: playBell(midi); break;
+    case 5: playOrgan(midi); break;
+    case 6: playClavinet(midi); break;
+    case 7: playGlass(midi); break;
+    default: playSawChorus(midi);
+  }
+}
+
+// Shared output chain — XY-controlled filter + soft clip + pan + compressor
+// X = filter cutoff offset, Y = resonance
+function makeEpianoOut(t, baseFreq) {
+  baseFreq = baseFreq || 800;
+  // XY-driven resonant lowpass — X shifts cutoff, Y controls Q
+  const xyFilter = audioCtx.createBiquadFilter();
+  xyFilter.type = 'lowpass';
+  const cutoff = Math.max(80, baseFreq * (0.3 + xyX * 3.5));
+  const Q = 0.5 + xyY * 18; // Y: subtle → screaming resonance
+  xyFilter.frequency.value = cutoff;
+  xyFilter.Q.value = Q;
+
+  // Soft clip for warmth
+  const shaper = audioCtx.createWaveShaper();
+  const curve = new Float32Array(256);
+  for (let i = 0; i < 256; i++) {
+    const x = (i * 2 / 255) - 1;
+    curve[i] = (3 + 6) * x / (3 + 6 * Math.abs(x));
+  }
+  shaper.curve = curve; shaper.oversample = '2x';
+
+  const pan = audioCtx.createStereoPanner(); pan.pan.value = 0.25;
+  xyFilter.connect(shaper); shaper.connect(pan); pan.connect(compressor);
+  return xyFilter; // connect source → xyFilter
+}
+
+// Voice 0: Mellotron Flute — FM with breathy noise, airy and woody
+
+
+// ─── KARPLUS-STRONG PLUCKED STRING ───────────────────────────────────────────
+
+let karplusEnabled = false;
+let karplusSeq = null;
+let karplusStep = 0;
+let karplusWasLongPress = false;
+let karplusHoldTimer = null;
+let karplusUnison = false;
+let karplusBus = null;
+
+function buildKarplusBus() {
+  if (!audioCtx || karplusBus) return;
+  const dryGain = audioCtx.createGain(); dryGain.gain.value = 1;
+  const delay = audioCtx.createDelay(2.0); delay.delayTime.value = 0.35;
+  const feedback = audioCtx.createGain(); feedback.gain.value = 0.45;
+  const delayLp = audioCtx.createBiquadFilter(); delayLp.type = 'lowpass'; delayLp.frequency.value = 2000;
+  const wetGain = audioCtx.createGain(); wetGain.gain.value = 0;
+  const pan = audioCtx.createStereoPanner(); pan.pan.value = -0.35;
+
+  // Amp-style grit chain
+  const ampShaper = audioCtx.createWaveShaper();
+  const ampCurve = new Float32Array(256);
+  for (let i = 0; i < 256; i++) {
+    const x = (i * 2 / 255) - 1;
+    ampCurve[i] = (3 + 18) * x / (3 + 18 * Math.abs(x));
+  }
+  ampShaper.curve = ampCurve; ampShaper.oversample = '2x';
+  const cabinet = audioCtx.createBiquadFilter(); cabinet.type = 'bandpass';
+  cabinet.frequency.value = 1800; cabinet.Q.value = 0.7;
+  const midCut = audioCtx.createBiquadFilter(); midCut.type = 'peaking';
+  midCut.frequency.value = 500; midCut.gain.value = -3; midCut.Q.value = 1.5;
+
+  dryGain.connect(ampShaper); ampShaper.connect(midCut); midCut.connect(cabinet); cabinet.connect(pan);
+  dryGain.connect(delay); delay.connect(delayLp); delayLp.connect(feedback);
+  feedback.connect(delay); delayLp.connect(wetGain); wetGain.connect(pan);
+  pan.connect(compressor);
+
+  karplusBus = { dryGain, delay, feedback, wetGain, pan };
+}
+
+function playKarplus(midi) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const freq = noteToFreq(midi);
+  if (!freq || !isFinite(freq) || freq <= 0) return;
+  const sr = audioCtx.sampleRate;
+  const duration = 2.5;
+  const totalSamples = Math.ceil(sr * duration);
+  const period = Math.round(sr / freq);
+  const buf = audioCtx.createBuffer(1, totalSamples, sr);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < period; i++) data[i] = Math.random() * 2 - 1;
+  const decayExp = Math.max(1, freq * duration);
+  const decay = Math.pow(0.001, 1 / decayExp);
+  for (let i = period; i < totalSamples; i++) {
+    data[i] = decay * 0.5 * (data[i - period] + data[i - period + 1]);
+  }
+  const source = audioCtx.createBufferSource(); source.buffer = buf;
+  const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass';
+  lp.frequency.value = Math.min(freq * 6, 8000); lp.Q.value = 0.5;
+  const outGain = audioCtx.createGain(); outGain.gain.value = 0.55;
+  buildKarplusBus();
+  source.connect(lp); lp.connect(outGain);
+  outGain.connect(karplusBus ? karplusBus.dryGain : compressor);
+  source.start(t); source.stop(t + duration);
+}
+
+function generateKarplusPattern() {
+  const scaleLen = SCALES[SCALE_NAMES[currentScaleIdx]].length;
+  const maxLeap = 1 + Math.round(xyX * 2);
+  const startOffset = 4;
+  let pos = (currentNoteIdx + startOffset) % scaleLen;
+  const motif = [];
+  for (let i = 0; i < 8; i++) {
+    if (Math.random() < 0.12) { motif.push(-1); continue; }
+    motif.push(pos);
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    pos = Math.max(0, Math.min(scaleLen - 1, pos + dir * (1 + Math.floor(Math.random() * maxLeap))));
+  }
+  const seq = [];
+  for (let rep = 0; rep < 2; rep++) {
+    for (let i = 0; i < 8; i++) {
+      const m = motif[i];
+      if (m === -1) { seq.push({ deg: -1 }); continue; }
+      if (rep === 0) { seq.push({ deg: m }); }
+      else if (Math.random() < 0.12) { seq.push({ deg: Math.max(0, Math.min(scaleLen-1, m + (Math.random()<0.5?1:-1))) }); }
+      else { seq.push({ deg: m }); }
+    }
+  }
+  return seq;
+}
+
+function stepKarplus() {
+  if (!karplusEnabled || !audioCtx || !karplusSeq) return;
+  let degree;
+  if (karplusUnison) {
+    degree = v1Seq[(v1Step - 1 + 16) % 16];
+  } else {
+    const entry = karplusSeq[karplusStep % 16];
+    karplusStep = (karplusStep + 1) % 16;
+    degree = entry && entry.deg !== undefined ? entry.deg : entry;
+  }
+  if (degree !== -1 && degree !== null) {
+    const midi = getScaleNote(currentScaleIdx, degree, epianoOctave + 1);
+    playKarplus(midi);
+  }
+}
+
+
+function stepEpiano() {
+  if (!epianoEnabled || !audioCtx || !epianoSeq) return;
+  let degree, octaveUp;
+  if (epianoUnison) {
+    // Unison: read directly from V1's sequence at V1's current step position
+    // v1Step has already been incremented this tick, so read one behind
+    const unisonDegree = v1Seq[(v1Step - 1 + 16) % 16];
+    degree = unisonDegree === -1 ? -1 : unisonDegree;
+    octaveUp = false;
+  } else {
+    const entry = epianoSeq[epianoStep % 16];
+    epianoStep = (epianoStep + 1) % 16;
+    degree = entry && entry.deg !== undefined ? entry.deg : entry;
+    octaveUp = entry && entry.octaveUp;
+  }
+  if (degree !== -1 && degree !== null) {
+    const oct = epianoOctave + 1 + (octaveUp ? 1 : 0);
+    const midi = getScaleNote(currentScaleIdx, degree, oct);
+    playEpianoVoice(midi, pianoVoice);
+
+  }
+  // Pattern only regenerates on RAND MELODY — loops identically every 16 steps
+}
+
+
+
+// FM Electric Piano — carrier sine modulated by modulator sine
+// Classic DX7 Rhodes algorithm: modulator ratio 1:1, modulation index decays fast (attack click)
+// then slow carrier decay gives the warm tine tail
+// playEpiano removed — use playEpianoVoice instead
+
+function onStep() {
+  step16++;
+  const zone = getArrangementZone();
+  const t = audioCtx ? audioCtx.currentTime : 0;
+  const pat = step16 % 16; // position within the 16-step loop
+
+  // V1 note period: sparse=16, groove=8, dense=4, chaos=2 steps
+  const v1Period = [16, 8, 4, 2][zone];
+  // V2 note period: sparse=V2 holds, groove=8, dense=4, chaos=2 steps
+  const v2Period = [0, 8, 4, 2][zone];
+  // Portamento: slower in sparse, snappier in chaos
+  const glide = [0.15, 0.08, 0.04, 0.012][zone];
+
+  // V1 pitch change — read from melodic sequence
+  if (step16 % v1Period === 0) {
+    const degree = v1Seq[v1Step % 16];
+    v1Step = (v1Step + 1) % 16;
+    if (degree !== -1) {
+      if (voice1 && v1Enabled) {
+        const midi = getScaleNote(currentScaleIdx, degree, 0);
+        const freq = noteToFreq(midi);
+        currentNoteIdx = degree;
+        voice1.osc.frequency.setTargetAtTime(freq, t, glide);
+        voice1.bpFilter.frequency.setTargetAtTime(freq, t, glide);
+        updateNoteDisplay(midi);
+      }
+
+      // Transpose epiano sequence to new V1 harmony without resetting the loop
+      if (epianoEnabled && !epianoUnison && epianoSeq) {
+        transposeEpianoToRoot(degree);
+      }
+      // Regenerate karplus pattern on V1 note change
+      if (karplusEnabled && !karplusUnison) {
+        karplusSeq = generateKarplusPattern();
+        karplusStep = 0;
+      }
+    }
+  }
+
+  // V1 stutter gate — chops swellGain rhythmically, locked to kick/snare grid
+  if (v1Enabled && v1Stutter && voice1) {
+    const stutterOpen = STUTTER_PATTERNS[zone][pat];
+    if (stutterOpen !== v1StutterLastOpen) {
+      v1StutterLastOpen = stutterOpen;
+      const stepSec = getStepIntervalMs() / 1000;
+      const g = voice1.swellGain.gain;
+      g.cancelScheduledValues(t);
+      g.setValueAtTime(stutterOpen ? 0.001 : 0.45, t);
+      g.linearRampToValueAtTime(stutterOpen ? 0.45 : 0.001, t + stepSec * (stutterOpen ? 0.12 : 0.2));
+    }
+  }
+
+  // V2 runs on its own slow independent timer (stepV2) — removed from onStep
+
+  // Piano + Karplus swap timing every 16 steps
+  const swapPhase = Math.floor(step16 / 16) % 2;
+  const pianoOnBeat = swapPhase === 0 ? (step16 % 2 === 0) : (step16 % 2 === 1);
+  const karplusOnBeat = !pianoOnBeat;
+  if (karplusOnBeat) { stepKarplus(); }
+
+  // E.Piano — Y controls density
+  // Use probability to smoothly blend between the two rates across full Y range
+  const epFireOn8th = step16 % 2 === 0;
+  const epFireOn4th = step16 % 4 === 0;
+  // Remap Y so 8ths only get fully dense near the very top:
+  // at Y=0.5 → ~0% extra 8ths, Y=0.75 → ~25%, Y=1.0 → ~100%
+  const ep8thChance = Math.max(0, (xyY - 0.5) * 2);
+  if (epFireOn4th || (epFireOn8th && ep8thChance > Math.random())) {
+    stepEpiano();
+  }
+
+  // V2 filter sweep — advances one step per onStep call, 32 steps = full sine cycle
+  updateV2Filter();
+
+  // XY ring buffer: always write current XY every step — captures held positions too
+  const xyWritePos = xyBufHead % XY_BUF;
+  xyBuf[xyWritePos] = {
+    x: xyX, y: xyY,
+    px: gfx ? (gfx.touchX !== undefined ? gfx.touchX : xyX * (gfx.W || 300)) : 0,
+    py: gfx ? (gfx.touchY !== undefined ? gfx.touchY : (1 - xyY) * (gfx.H || 500)) : 0
+  };
+  const xyReadPos = (xyBufHead - XY_BUF + 1 + XY_BUF * 2) % XY_BUF;
+  const xyFrame = xyBuf[xyReadPos];
+  xyBufHead++;
+  if (xyBufHead > XY_BUF) {
+    xyX = xyFrame.x; xyY = xyFrame.y;
+    if (gfx && xyFrame.px) gfx.addPoint(xyFrame.px, xyFrame.py);
+    applyXY();
+  }
+
+  // Snare — complexity from slider, kick/snare gated by drumsEnabled
+  if (drumsEnabled && KICK_PATTERNS[zone][pat]) {
+    const midi = getScaleNote(currentScaleIdx, currentNoteIdx, 1);
+    kick808(midi);
+  }
+  if (drumsEnabled && getSnarePattern(pat)) {
+    snare();
+  }
+
+  // Hihat — fills gaps between kick and snare
+  if (drumsEnabled && hihatEnabled) {
+    const hhType = getHihatPattern(zone, pat);
+    if (hhType) hihat(hhType);
+  }
+
+  // Tom pattern — only when enabled
+  if (tomEnabled) {
+    const degree = tomFillActive ? tomFill[pat] : tomPattern[pat];
+    if (degree !== -1) playTom(degree, tomFillActive);
+  }
+}
+
+// Tom fill pattern (generated on hold, stored separately)
+let tomFill = generateTomFill();
+
+function updateNoteDisplay(midi) {
+  document.getElementById('note-display').textContent = NOTE_NAMES[midi % 12] + Math.floor(midi/12 - 1);
+}
+
+function updateVU() {
+  if (!analyser || !vuData) return;
+  analyser.getByteFrequencyData(vuData);
+  let sum = 0;
+  for (let i = 0; i < vuData.length; i++) sum += vuData[i];
+  const pct = Math.min(100, (sum / vuData.length / 128) * 200);
+  document.getElementById('vu').style.height = pct + '%';
+}
+
+// ─── UI ───────────────────────────────────────────────────────────────────────
+let gfx = null;
+
+// Tempo selector interaction on init screen
+document.querySelectorAll('.tempo-opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tempo-opt').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedBpm = parseInt(btn.dataset.bpm);
+  });
+});
+
+// Scale selector on init screen
+let scaleUserSelected = false;
+document.querySelectorAll('.scale-opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.scale-opt').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    currentScaleIdx = parseInt(btn.dataset.scale);
+    scaleUserSelected = true;
+  });
+});
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  // If no scale selected, pick one randomly
+  if (!scaleUserSelected) {
+    currentScaleIdx = Math.floor(Math.random() * SCALE_NAMES.length);
+    const btns = document.querySelectorAll('.scale-opt');
+    btns.forEach(b => b.classList.remove('selected'));
+    if (btns[currentScaleIdx]) btns[currentScaleIdx].classList.add('selected');
+  }
+  document.getElementById('init-screen').classList.add('hidden');
+  document.getElementById('app').classList.add('active');
+  document.getElementById('tb-bpm').textContent = selectedBpm + ' BPM';
+  document.getElementById('tb-scale').textContent = SCALE_NAMES[currentScaleIdx].replace('_',' ');
+  document.getElementById('scale-display').textContent = SCALE_NAMES[currentScaleIdx].replace('_',' ');
+
+  const canvas = document.getElementById('gfx-canvas');
+  gfx = new GraffitiEngine(canvas);
+  window.addEventListener('resize', () => { if (gfx) gfx.resize(); });
+
+  (function loop() { if (gfx) gfx.tick(); requestAnimationFrame(loop); })();
+
+  initAudio();
+
+  // Draw snare slider once layout is settled
+  setTimeout(drawSnareSlider, 50);
+  setTimeout(drawPianoSlider, 50);
+
+  setTimeout(() => {
+    if (!gfx) return;
+    const ctx = gfx.ctx;
+    ctx.font = '11px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.textAlign = 'center';
+    ctx.fillText('TOUCH TO BEGIN', gfx.W / 2, gfx.H / 2);
+  }, 200);
+});
+
+const xyPad = document.getElementById('xy-pad');
+const cursor = document.getElementById('cursor');
+
+function handleXY(e) {
+  e.preventDefault();
+  const rect = xyPad.getBoundingClientRect();
+  const touch = e.touches ? e.touches[0] : e;
+  const px = touch.clientX - rect.left;
+  const py = touch.clientY - rect.top;
+
+  xyX = Math.max(0, Math.min(1, px / rect.width));
+  xyY = Math.max(0, Math.min(1, 1 - py / rect.height));
+
+  cursor.style.display = 'block';
+  cursor.style.left = px + 'px';
+  cursor.style.top = py + 'px';
+
+  document.getElementById('y-display').textContent = Math.round(xyY * 100);
+
+  if (gfx) gfx.addPoint(px, py);
+  applyXY();
+}
+
+xyPad.addEventListener('touchstart', handleXY, {passive: false});
+xyPad.addEventListener('touchmove', handleXY, {passive: false});
+xyPad.addEventListener('touchend', () => { cursor.style.display = 'none'; }, {passive: false});
+xyPad.addEventListener('mousedown', handleXY);
+xyPad.addEventListener('mousemove', (e) => { if (e.buttons) handleXY(e); });
+xyPad.addEventListener('mouseup', () => { cursor.style.display = 'none'; });
+xyPad.addEventListener('mouseleave', () => { cursor.style.display = 'none'; });
+
+const v1Btn = document.getElementById('btn-voice1');
+
+v1Btn.addEventListener('pointerdown', () => {
+  v1StutterWasLong = false;
+  v1StutterHoldTimer = setTimeout(() => {
+    v1StutterWasLong = true;
+    v1Stutter = !v1Stutter;
+    v1Enabled = true;
+    v1Btn.innerHTML = v1Stutter ? 'V1<br>STUTTER' : 'V1<br>FEEDBACK';
+    v1Btn.classList.add('active');
+    if (!v1Stutter && voice1 && audioCtx) {
+      voice1.swellGain.gain.setTargetAtTime(0.45, audioCtx.currentTime, 0.05);
+    }
+  }, 600);
+});
+v1Btn.addEventListener('pointerup', () => { if (v1StutterHoldTimer) { clearTimeout(v1StutterHoldTimer); v1StutterHoldTimer = null; } });
+v1Btn.addEventListener('pointerleave', () => { if (v1StutterHoldTimer) { clearTimeout(v1StutterHoldTimer); v1StutterHoldTimer = null; } });
+v1Btn.addEventListener('click', () => {
+  if (v1StutterWasLong) { v1StutterWasLong = false; return; }
+  v1Enabled = !v1Enabled;
+  if (!v1Enabled) { v1Stutter = false; v1Btn.innerHTML = 'V1<br>FEEDBACK'; }
+  v1Btn.classList.toggle('active', v1Enabled);
+  if (voice1 && audioCtx) {
+    const t = audioCtx.currentTime;
+    if (v1Enabled) {
+      voice1.swellGain.gain.setTargetAtTime(0.45, t, 0.3);
+      voice1.feedbackGain.gain.setTargetAtTime(0.4, t, 0.3);
+      voice1.driveGain.gain.setTargetAtTime(3.0, t, 0.3);
+    } else {
+      voice1.swellGain.gain.setTargetAtTime(0, t, 0.8);
+      voice1.feedbackGain.gain.setTargetAtTime(0, t, 0.6);
+      voice1.driveGain.gain.setTargetAtTime(0, t, 1.2);
+    }
+  }
+});
+
+// V2 toggle — deferred to next beat boundary so ducking doesn't interfere
+let v2PendingToggle = false;
+let v2FullyOn = true;
+let v2FadeLevel = 1;
+let v2WasLongPress = false;
+let v2HoldTimer = null;
+
+const v2Btn = document.getElementById('btn-voice2');
+
+v2Btn.addEventListener('pointerdown', () => {
+  v2WasLongPress = false;
+  v2HoldTimer = setTimeout(() => {
+    v2WasLongPress = true;
+    v2FilterLocked = !v2FilterLocked;
+    v2Btn.innerHTML = v2FilterLocked ? 'V2<br>LOCKED' : 'V2<br>DRONE';
+    if (v2Enabled) v2Btn.classList.add('active');
+  }, 600);
+});
+v2Btn.addEventListener('pointerup', () => { if (v2HoldTimer) { clearTimeout(v2HoldTimer); v2HoldTimer = null; } });
+v2Btn.addEventListener('pointerleave', () => { if (v2HoldTimer) { clearTimeout(v2HoldTimer); v2HoldTimer = null; } });
+
+v2Btn.addEventListener('click', () => {
+  if (v2WasLongPress) { v2WasLongPress = false; return; }
+  v2Enabled = !v2Enabled;
+  v2FullyOn = false;
+  v2Btn.classList.toggle('active', v2Enabled);
+  if (voice2 && voice2.v2FadeGain && audioCtx) {
+    const fg = voice2.v2FadeGain.gain;
+    const now = audioCtx.currentTime;
+    fg.cancelScheduledValues(now);
+    fg.setValueAtTime(v2FadeLevel, now);
+    if (v2Enabled) {
+      fg.linearRampToValueAtTime(1, now + 4.0);
+      setTimeout(() => { if (v2Enabled) { v2FullyOn = true; v2FadeLevel = 1; } }, 4100);
+    } else {
+      fg.linearRampToValueAtTime(0, now + 4.0);
+      setTimeout(() => { if (!v2Enabled) v2FadeLevel = 0; }, 4100);
+    }
+  }
+});
+
+document.getElementById('btn-scale').addEventListener('click', () => {
+  currentScaleIdx = (currentScaleIdx + 1) % SCALE_NAMES.length;
+  const name = SCALE_NAMES[currentScaleIdx].replace('_', ' ');
+  document.getElementById('tb-scale').textContent = name;
+  document.getElementById('scale-display').textContent = name;
+  buildVoice1();
+  buildVoice2();
+});
+
+document.getElementById('btn-rand').addEventListener('click', () => {
+  randomizeMelody();
+  // Flash button
+  const b = document.getElementById('btn-rand');
+  b.classList.add('active');
+  setTimeout(() => b.classList.remove('active'), 300);
+});
+
+// E.Piano toggle
+let epianoHoldTimer = null;
+let epianoUnison = false;
+let epianoJustEnteredUnison = false;
+
+const epianoBtn = document.getElementById('btn-epiano');
+
+let epianoWasLongPress = false;
+
+epianoBtn.addEventListener('pointerdown', () => {
+  epianoWasLongPress = false;
+  epianoHoldTimer = setTimeout(() => {
+    epianoWasLongPress = true;
+    if (epianoUnison) {
+      // Already in unison — exit to melody
+      epianoUnison = false;
+      epianoJustEnteredUnison = false;
+      epianoSeq = generateEpianoPattern();
+      epianoStep = 0;
+      epianoBtn.innerHTML = 'FM PIANO<br>MELODY';
+      epianoEnabled = true;
+      epianoBtn.classList.add('active');
+    } else {
+      // Enter unison
+      epianoUnison = true;
+      epianoJustEnteredUnison = true;
+      epianoStep = 0;
+      epianoBtn.innerHTML = 'FM PIANO<br>UNISON';
+      epianoBtn.classList.add('active');
+      epianoEnabled = true;
+    }
+  }, 600);
+});
+
+epianoBtn.addEventListener('pointerup', () => {
+  if (epianoHoldTimer) { clearTimeout(epianoHoldTimer); epianoHoldTimer = null; }
+});
+
+epianoBtn.addEventListener('pointerleave', () => {
+  if (epianoHoldTimer) { clearTimeout(epianoHoldTimer); epianoHoldTimer = null; }
+});
+
+epianoBtn.addEventListener('click', () => {
+  if (epianoWasLongPress) {
+    epianoWasLongPress = false;
+    if (epianoJustEnteredUnison) {
+      // This long press just entered unison — swallow the click, don't exit
+      epianoJustEnteredUnison = false;
+      return;
+    }
+    if (epianoUnison) {
+      // Long press while already in unison — exit back to melody
+      epianoUnison = false;
+      epianoSeq = generateEpianoPattern();
+      epianoStep = 0;
+      epianoBtn.innerHTML = 'FM PIANO<br>MELODY';
+      epianoEnabled = true;
+      epianoBtn.classList.add('active');
+    }
+    return;
+  }
+  // Short tap — toggle on/off only
+  epianoEnabled = !epianoEnabled;
+  epianoBtn.classList.toggle('active', epianoEnabled);
+});
+
+// V2 Filter Lock
+// V2 filter lock now handled by long press on btn-voice2
+
+// TOM button: tap = toggle on/off, hold 600ms = randomize fill (held = fill plays)
+const tomBtn = document.getElementById('btn-tom');
+
+tomBtn.addEventListener('pointerdown', () => {
+  if (!audioCtx) return;
+  // Start hold timer
+  tomHoldTimer = setTimeout(() => {
+    // Generate new fill and activate it
+    tomFill = generateTomFill();
+    tomFillActive = true;
+    tomBtn.classList.add('active');
+    tomBtn.textContent = 'TOM\nFILL';
+  }, 600);
+});
+
+tomBtn.addEventListener('pointerup', () => {
+  if (tomHoldTimer) {
+    clearTimeout(tomHoldTimer);
+    tomHoldTimer = null;
+    if (!tomFillActive) {
+      // Short tap — toggle tom on/off
+      tomEnabled = !tomEnabled;
+      if (tomEnabled) {
+        tomPattern = generateTomPattern();
+        tomBtn.classList.add('active');
+      } else {
+        tomBtn.classList.remove('active');
+      }
+    }
+  }
+  // Release fill — go back to sparse pattern
+  if (tomFillActive) {
+    tomFillActive = false;
+    tomBtn.style.borderColor = '';
+    // Keep tom enabled after fill
+    if (tomEnabled) tomBtn.classList.add('active');
+  }
+  tomBtn.innerHTML = 'TOM<br>PATTERN';
+});
+
+tomBtn.addEventListener('pointerleave', () => {
+  if (tomHoldTimer) { clearTimeout(tomHoldTimer); tomHoldTimer = null; }
+  if (tomFillActive) {
+    tomFillActive = false;
+    tomBtn.innerHTML = 'TOM<br>PATTERN';
+  }
+});
+
+// ─── SNARE CANVAS SLIDER ─────────────────────────────────────────────────────
+const SNARE_LABELS = [
+  'SINGLE END','SINGLE MID','BACKBEAT','HALF TIME',
+  'GHOST 16TH','UPBEAT','ANTICIPATE','SYNCO PUSH',
+  'SYNCO TAIL','CROSS RHYM','DENSE OFF','DRIVING',
+  'VERY DENSE','NEAR CONT'
+];
+const NUM_LEVELS = SNARE_LABELS.length;
+let snareLevel = Math.floor(NUM_LEVELS / 2) - 5; // 5 below center
+
+function drawSnareSlider() {
+  const wrap = document.getElementById('snare-canvas-wrap');
+  const canvas = document.getElementById('snare-canvas');
+  if (!wrap || !canvas) return;
+  const W = wrap.clientWidth;
+  const H = wrap.clientHeight;
+  canvas.width = W * window.devicePixelRatio;
+  canvas.height = H * window.devicePixelRatio;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD = 12;
+  const trackH = H - PAD * 2;
+  const cx = W / 2;
+
+  // Track line
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, PAD);
+  ctx.lineTo(cx, PAD + trackH);
+  ctx.stroke();
+
+  // Tick marks for each level
+  for (let i = 0; i < NUM_LEVELS; i++) {
+    const y = PAD + (1 - i / (NUM_LEVELS - 1)) * trackH;
+    const isActive = i === snareLevel;
+    const isPast = i < snareLevel;
+    const tickW = isActive ? 18 : (isPast ? 10 : 7);
+    ctx.strokeStyle = isActive ? '#fff' : isPast ? '#444' : '#222';
+    ctx.lineWidth = isActive ? 1.5 : 0.75;
+    ctx.beginPath();
+    ctx.moveTo(cx - tickW / 2, y);
+    ctx.lineTo(cx + tickW / 2, y);
+    ctx.stroke();
+  }
+
+  // Fill bar — from bottom to current level
+  const selY = PAD + (1 - snareLevel / (NUM_LEVELS - 1)) * trackH;
+  const botY = PAD + trackH;
+  ctx.strokeStyle = '#383838';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, selY);
+  ctx.lineTo(cx, botY);
+  ctx.stroke();
+
+  // Thumb — wide white bar at selected level
+  const thumbY = selY;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(cx - 14, thumbY - 3, 28, 6);
+
+  // Level number beside thumb
+  ctx.fillStyle = '#666';
+  ctx.font = '7px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(snareLevel + 1, cx - 16, thumbY + 2.5);
+
+  document.getElementById('snare-val').textContent = SNARE_LABELS[snareLevel];
+}
+
+
+// ─── PIANO VOICE SLIDER ──────────────────────────────────────────────────────
+function drawPianoSlider() {
+  const wrap = document.getElementById('piano-canvas-wrap');
+  const canvas = document.getElementById('piano-canvas');
+  if (!wrap || !canvas) return;
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  canvas.width = W * window.devicePixelRatio;
+  canvas.height = H * window.devicePixelRatio;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  ctx.clearRect(0, 0, W, H);
+  const PAD = 12, trackH = H - PAD * 2, cx = W / 2;
+  const N = PIANO_LABELS.length;
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx, PAD); ctx.lineTo(cx, PAD + trackH); ctx.stroke();
+  for (let i = 0; i < N; i++) {
+    const y = PAD + (1 - i / (N - 1)) * trackH;
+    const isActive = i === pianoVoice, isPast = i < pianoVoice;
+    const tickW = isActive ? 18 : isPast ? 10 : 7;
+    ctx.strokeStyle = isActive ? '#fff' : isPast ? '#444' : '#222';
+    ctx.lineWidth = isActive ? 1.5 : 0.75;
+    ctx.beginPath(); ctx.moveTo(cx - tickW/2, y); ctx.lineTo(cx + tickW/2, y); ctx.stroke();
+  }
+  const selY = PAD + (1 - pianoVoice / (N - 1)) * trackH;
+  ctx.strokeStyle = '#383838'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx, selY); ctx.lineTo(cx, PAD + trackH); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.fillRect(cx - 14, selY - 3, 28, 6);
+  ctx.fillStyle = '#666'; ctx.font = '7px monospace'; ctx.textAlign = 'right';
+  ctx.fillText(pianoVoice + 1, cx - 16, selY + 2.5);
+  const pVal = document.getElementById('piano-val');
+  if (pVal) pVal.textContent = PIANO_LABELS[pianoVoice];
+}
+
+function pianoCanvasHit(e) {
+  e.preventDefault();
+  const wrap = document.getElementById('piano-canvas-wrap');
+  const rect = wrap.getBoundingClientRect();
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const rel = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+  pianoVoice = Math.round((1 - rel) * (PIANO_LABELS.length - 1));
+  drawPianoSlider();
+}
+
+const pianoWrap = document.getElementById('piano-canvas-wrap');
+if (pianoWrap) {
+  pianoWrap.addEventListener('touchstart', pianoCanvasHit, {passive:false});
+  pianoWrap.addEventListener('touchmove', pianoCanvasHit, {passive:false});
+  pianoWrap.addEventListener('mousedown', pianoCanvasHit);
+  pianoWrap.addEventListener('mousemove', (e) => { if (e.buttons) pianoCanvasHit(e); });
+}
+requestAnimationFrame(() => { requestAnimationFrame(drawPianoSlider); });
+window.addEventListener('resize', drawPianoSlider);
+
+function snareCanvasHit(e) {
+  e.preventDefault();
+  const wrap = document.getElementById('snare-canvas-wrap');
+  const rect = wrap.getBoundingClientRect();
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const rel = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+  // top = dense (high index), bottom = sparse (low index)
+  snareLevel = Math.round((1 - rel) * (NUM_LEVELS - 1));
+  snareComplexity = snareLevel / (NUM_LEVELS - 1);
+  drawSnareSlider();
+}
+
+const snareWrap = document.getElementById('snare-canvas-wrap');
+snareWrap.addEventListener('touchstart', snareCanvasHit, {passive:false});
+snareWrap.addEventListener('touchmove', snareCanvasHit, {passive:false});
+snareWrap.addEventListener('mousedown', snareCanvasHit);
+snareWrap.addEventListener('mousemove', (e) => { if (e.buttons) snareCanvasHit(e); });
+
+// Draw after layout
+requestAnimationFrame(() => { requestAnimationFrame(drawSnareSlider); });
+window.addEventListener('resize', drawSnareSlider);
+
+// Kick/Snare toggle
+const drumsBtn = document.getElementById('btn-drums');
+
+drumsBtn.addEventListener('pointerdown', () => {
+  hihatWasLongPress = false;
+  hihatHoldTimer = setTimeout(() => {
+    hihatWasLongPress = true;
+    hihatEnabled = !hihatEnabled;
+    drumsBtn.innerHTML = hihatEnabled ? 'KICK SNARE<br>+ HIHAT' : 'KICK<br>SNARE';
+  }, 600);
+});
+drumsBtn.addEventListener('pointerup', () => { if (hihatHoldTimer) { clearTimeout(hihatHoldTimer); hihatHoldTimer = null; } });
+drumsBtn.addEventListener('pointerleave', () => { if (hihatHoldTimer) { clearTimeout(hihatHoldTimer); hihatHoldTimer = null; } });
+drumsBtn.addEventListener('click', () => {
+  if (hihatWasLongPress) { hihatWasLongPress = false; return; }
+  drumsEnabled = !drumsEnabled;
+  drumsBtn.classList.toggle('active', drumsEnabled);
+});
+
+
+
+// Karplus button
+const karplusBtn = document.getElementById('btn-karplus');
+if (karplusBtn) {
+  karplusBtn.addEventListener('pointerdown', () => {
+    karplusWasLongPress = false;
+    karplusHoldTimer = setTimeout(() => {
+      karplusWasLongPress = true;
+      karplusUnison = !karplusUnison;
+      if (karplusUnison) { karplusStep = 0; karplusBtn.innerHTML = 'KARPLUS<br>UNISON'; }
+      else { karplusSeq = generateKarplusPattern(); karplusStep = 0; karplusBtn.innerHTML = 'KARPLUS<br>STRING'; }
+      karplusEnabled = true; karplusBtn.classList.add('active');
+    }, 600);
+  });
+  karplusBtn.addEventListener('pointerup', () => { if (karplusHoldTimer) { clearTimeout(karplusHoldTimer); karplusHoldTimer = null; } });
+  karplusBtn.addEventListener('pointerleave', () => { if (karplusHoldTimer) { clearTimeout(karplusHoldTimer); karplusHoldTimer = null; } });
+  karplusBtn.addEventListener('click', () => {
+    if (karplusWasLongPress) { karplusWasLongPress = false; return; }
+    karplusEnabled = !karplusEnabled;
+    if (!karplusEnabled) {
+      karplusUnison = false; karplusBtn.innerHTML = 'KARPLUS<br>STRING';
+      if (karplusBus && audioCtx) {
+        const now = audioCtx.currentTime;
+        karplusBus.dryGain.gain.setTargetAtTime(0, now, 0.1);
+        karplusBus.wetGain.gain.setValueAtTime(0.5, now);
+        karplusBus.feedback.gain.setTargetAtTime(0, now + 1.5, 0.8);
+        karplusBus.wetGain.gain.setTargetAtTime(0, now + 2.0, 0.5);
+      }
+    } else {
+      if (karplusBus && audioCtx) {
+        const now = audioCtx.currentTime;
+        karplusBus.dryGain.gain.setTargetAtTime(1, now, 0.1);
+        karplusBus.wetGain.gain.setTargetAtTime(0, now, 0.1);
+        karplusBus.feedback.gain.setTargetAtTime(0.45, now, 0.1);
+      }
+      if (!karplusSeq) karplusSeq = generateKarplusPattern();
+    }
+    karplusBtn.classList.toggle('active', karplusEnabled);
+  });
+}
+
+
+})();
+</script>
+</body>
+</html>
